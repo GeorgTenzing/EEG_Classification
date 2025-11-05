@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from copy import deepcopy
 
-from Torch import EEGDataset   
+from Models import EEGDataset   
 from Utils import plot_training_metrics
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -107,16 +107,12 @@ def run_multiple_models(models=None, shared_parameters=None):
     # ============================================================
     # 3️⃣ Define available models if none given
     # ============================================================
-    from Torch import (
-        EEGClassifier_withBase, EEGNet_withBase, BiLSTMModel_withBase,
-        ShallowConvNet_withBase, TCNModel_withBase, EEGTransformer_withBase,
-        SpectroCNN_withBase, TCNAttentionModel_withBase, EEGTransformerLite_withBase
+    from Models import (
+        EEGClassifier, EEGNet, MNISTNet,
     )
 
     all_models = [
-        EEGClassifier_withBase, EEGNet_withBase, BiLSTMModel_withBase,
-        ShallowConvNet_withBase, TCNModel_withBase, EEGTransformer_withBase,
-        SpectroCNN_withBase, TCNAttentionModel_withBase, EEGTransformerLite_withBase
+        EEGClassifier, EEGNet, MNISTNet,
     ]
 
     models_to_run = models or all_models
