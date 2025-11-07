@@ -481,6 +481,7 @@ def downsample_label(X, y, target_label=0, keep_ratio=0.1, seed=42):
     """
     Randomly keep only a fraction of samples from the given target_label.
     For example, keep_ratio=0.1 keeps 10% of all label 0 windows.
+    I think it was 0.2 before
 
     Returns:
         X_balanced, y_balanced

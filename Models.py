@@ -110,16 +110,8 @@ class BaseModel(pl.LightningModule):
     def validation_step(self, batch):
         X, y = batch
         preds = self(X)
-
-        # Define class weights (you can tune the first one for label 0)
-        # weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
-        weights = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
-        weights[0] = 0.5
-        # Use weighted cross-entropy
-        criterion = nn.CrossEntropyLoss(weight=weights)
+        criterion = nn.CrossEntropyLoss()
         loss = criterion(preds, y)
-
-        # loss = nn.functional.cross_entropy(preds, y)
         acc = self.val_acc(preds, y)
         self.log("val_loss", loss, prog_bar=True, on_epoch=True, logger=True, on_step=False)
         self.log("val_acc", acc, prog_bar=True, on_epoch=True, logger=True, on_step=False)
@@ -173,16 +165,19 @@ class BaseModel(pl.LightningModule):
 
         # --- Class labels ---
         # Default sorted SSVEP frequencies (Hz)
-        class_labels = [5, 7, 8.6, 10.5, 11, 12, 13.4, 15.2, 17, 18.1]
+        if num_classes == 6:
+            class_labels = [0, 7, 10.5, 12, 15.2, 18.1]
+        elif num_classes == 11:
+            class_labels = [0, 5, 7, 8.6, 10.5, 11, 12, 13.4, 15.2, 17, 18.1]
         # class_labels = getattr(self, "class_labels", [f"C{i}" for i in range(num_classes)])
 
-        # --- Print matrix nicely in console ---
-        print("\n📊 Confusion Matrix (counts):")
-        header = "\t".join([f"{lbl:>6}" for lbl in class_labels])
-        print(f"{'':8s}{header}")
-        for i, row in enumerate(cm):
-            row_str = "\t".join([f"{int(v):6d}" for v in row])
-            print(f"{class_labels[i]:>6} | {row_str}")
+        # # --- Print matrix nicely in console ---
+        # print("\n📊 Confusion Matrix (counts):")
+        # header = "\t".join([f"{lbl:>6}" for lbl in class_labels])
+        # print(f"{'':8s}{header}")
+        # for i, row in enumerate(cm):
+        #     row_str = "\t".join([f"{int(v):6d}" for v in row])
+        #     print(f"{class_labels[i]:>6} | {row_str}")
 
         # --- Compute per-class accuracies ---
         class_acc = cm.diagonal() / cm.sum(axis=1)

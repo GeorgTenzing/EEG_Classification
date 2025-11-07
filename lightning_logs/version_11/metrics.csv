@@ -1,0 +1,2 @@
+class_0_acc,class_1_acc,class_2_acc,class_3_acc,class_4_acc,class_5_acc,epoch,step,test_acc,test_loss
+0.9583333134651184,0.0,0.0,0.0,0.0,0.0,0,0,0.2211538404226303,1.790986180305481
