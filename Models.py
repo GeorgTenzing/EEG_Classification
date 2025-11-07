@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 # torch.set_float32_matmul_precision('high')        # for better performance on some hardware
@@ -152,18 +153,86 @@ class BaseModel(pl.LightningModule):
         # )
         return optimizer
 
-    def on_test_epoch_end(self):
-        # Compute confusion matrix at epoch end
-        cm = self.test_cm.compute().cpu().numpy()
-        print("\nConfusion Matrix:\n", cm)
+    # def on_test_epoch_end(self):
+    #     # Compute confusion matrix at epoch end
+    #     cm = self.test_cm.compute().cpu().numpy()
+    #     print("\nConfusion Matrix:\n", cm)
 
-        # Compute per-class accuracies manually
+    #     # Compute per-class accuracies manually
+    #     class_acc = cm.diagonal() / cm.sum(axis=1)
+    #     for i, acc in enumerate(class_acc):
+    #         self.log(f"class_{i}_acc", acc)
+
+    #     # Reset confusion matrix
+    #     self.test_cm.reset()
+
+    def on_test_epoch_end(self):
+        # --- Compute confusion matrix ---
+        cm = self.test_cm.compute().cpu().numpy()
+        num_classes = cm.shape[0]
+
+        # --- Class labels ---
+        # Default sorted SSVEP frequencies (Hz)
+        class_labels = [5, 7, 8.6, 10.5, 11, 12, 13.4, 15.2, 17, 18.1]
+        # class_labels = getattr(self, "class_labels", [f"C{i}" for i in range(num_classes)])
+
+        # --- Print matrix nicely in console ---
+        print("\n📊 Confusion Matrix (counts):")
+        header = "\t".join([f"{lbl:>6}" for lbl in class_labels])
+        print(f"{'':8s}{header}")
+        for i, row in enumerate(cm):
+            row_str = "\t".join([f"{int(v):6d}" for v in row])
+            print(f"{class_labels[i]:>6} | {row_str}")
+
+        # --- Compute per-class accuracies ---
         class_acc = cm.diagonal() / cm.sum(axis=1)
         for i, acc in enumerate(class_acc):
             self.log(f"class_{i}_acc", acc)
+            print(f"Class {class_labels[i]} accuracy: {acc:.3f}")
 
-        # Reset confusion matrix
+        # --- Pretty matplotlib plot ---
+        fig, ax = plt.subplots(figsize=(6, 5))
+        im = ax.imshow(cm, interpolation='nearest', cmap='Blues')
+
+        # Title and axis labels
+        ax.set_title("Confusion Matrix")
+        ax.set_xlabel("Predicted label")
+        ax.set_ylabel("True label")
+
+        # Tick marks
+        ax.set_xticks(np.arange(num_classes))
+        ax.set_yticks(np.arange(num_classes))
+        ax.set_xticklabels(class_labels)
+        ax.set_yticklabels(class_labels)
+
+        # Rotate tick labels
+        plt.setp(ax.get_xticklabels(), rotation=30, ha="right", rotation_mode="anchor")
+
+        # Annotate each cell with count
+        thresh = cm.max() / 2.0
+        for i in range(num_classes):
+            for j in range(num_classes):
+                value = int(cm[i, j])
+                color = "white" if value > thresh else "black"
+                ax.text(j, i, f"{value}", ha="center", va="center", color=color, fontsize=10)
+
+        fig.colorbar(im, ax=ax)
+        fig.tight_layout()
+        plt.show()
+
+        # --- Reset confusion matrix for next epoch ---
         self.test_cm.reset()
+
+
+
+
+
+
+
+
+
+
+
 
 
 class EEGClassifier(BaseModel): # working, best 78% val acc, 74% test acc
