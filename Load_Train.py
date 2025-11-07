@@ -39,7 +39,7 @@ def run_multiple_models(models=None, shared_parameters=None):
 
     
     defaults = {
-        "data_path": "processed_eeg_data_ssvep.npz",
+        "data_path": "datasets/numpy/ssvep_10_nofilter_GCGG.npz",
         
         "MAX_TIME": "00:00:15:00",
         "EPOCHS": 90000,
@@ -145,8 +145,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 gradient_clip_val=params["MAX_GRAD_NORM"],
                 accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
 
-                # enable_model_summary=params["SUMMARY"],
-                enable_model_summary=True,
+                enable_model_summary=params["SUMMARY"],
                 enable_checkpointing=True,
                 callbacks=[checkpoint],
                 benchmark=params["BENCHMARK"],

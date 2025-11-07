@@ -65,6 +65,8 @@ class EEGDataset(Dataset):
 class BaseModel(pl.LightningModule):
     def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5):
         super().__init__()
+        self.in_channels = in_channels
+        self.num_classes = num_classes
         # self.save_hyperparameters()
         self.lr = LR
         self.weight_decay = WEIGHT_DECAY
@@ -87,8 +89,9 @@ class BaseModel(pl.LightningModule):
         X, y = batch
         preds = self(X)
         # Define class weights (you can tune the first one for label 0)
-        weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
-
+        # weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
+        weights = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
+        weights[0] = 0.5
         # Use weighted cross-entropy
         criterion = nn.CrossEntropyLoss(weight=weights)
         loss = criterion(preds, y)
@@ -108,7 +111,9 @@ class BaseModel(pl.LightningModule):
         preds = self(X)
 
         # Define class weights (you can tune the first one for label 0)
-        weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
+        # weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
+        weights = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
+        weights[0] = 0.5
         # Use weighted cross-entropy
         criterion = nn.CrossEntropyLoss(weight=weights)
         loss = criterion(preds, y)
