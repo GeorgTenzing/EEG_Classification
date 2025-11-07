@@ -13,7 +13,8 @@ def get_eeg_data_segmented(
         rest_threshold=1e16,
         n_clusters=None,
         data_slice=None,
-        debug = True
+        debug = True,
+        filter = False,
 ):
     """
     Load EEG SSVEP CSV, discretize trigger channel, and segment EEG into
@@ -76,9 +77,10 @@ def get_eeg_data_segmented(
         return filtfilt(b, a, data, axis=1)
 
     # --- Apply preprocessing ---
-    eeg = notch_filter(eeg, freq=50, fs=sample_rate)
-    eeg = bandpass_filter(eeg, lowcut=5, highcut=40, fs=sample_rate)
-
+    if filter:
+        eeg = notch_filter(eeg, freq=50, fs=sample_rate)
+        eeg = bandpass_filter(eeg, lowcut=5, highcut=40, fs=sample_rate)
+    
     
 
     # --- Discretize trigger automatically ---
@@ -147,7 +149,8 @@ def load_and_concat_ssvep_datasets(
     sample_rate=500,
     window_size=1.0,
     overlap=0.5,
-    debug=False
+    debug=False,
+    filter=False,
 ):
     """
     Load and combine multiple SSVEP EEG datasets from a list of CSV files.
@@ -187,7 +190,8 @@ def load_and_concat_ssvep_datasets(
                 window_size=window_size,
                 overlap=overlap,
                 data_slice=dslice,
-                debug=debug
+                debug=debug,
+                filter=filter,
             )
             X_list.append(X)
             y_list.append(y)

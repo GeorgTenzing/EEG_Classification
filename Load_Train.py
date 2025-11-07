@@ -72,7 +72,7 @@ def run_multiple_models(models=None, shared_parameters=None):
         params.update(shared_parameters)
 
     # ============================================================
-    # 1️⃣ Load and prepare dataset once
+    # 1️ Load and prepare dataset once
     # ============================================================
     print(f"Loading data from: {params['data_path']}")
     data = np.load(params["data_path"])
@@ -93,7 +93,7 @@ def run_multiple_models(models=None, shared_parameters=None):
     print(f"Dataset split: Train={len(train_ds)}, Val={len(val_ds)}, Test={len(test_ds)}")
 
     # ============================================================
-    # 2️⃣ Create dataloaders once
+    # 2️ Create dataloaders once
     # ============================================================
     train_loader = DataLoader(
         train_ds, batch_size=params["BATCH_SIZE"], shuffle=params["SHUFFLE"],
@@ -105,7 +105,7 @@ def run_multiple_models(models=None, shared_parameters=None):
     print("Dataloaders ready")
 
     # ============================================================
-    # 3️⃣ Define available models if none given
+    # 3️ Define available models if none given
     # ============================================================
     from Models import (
         EEGClassifier, EEGNet, MNISTNet,
@@ -117,7 +117,7 @@ def run_multiple_models(models=None, shared_parameters=None):
 
     models_to_run = models or all_models
     # ============================================================
-    # 4️⃣ Loop over each model (new Trainer & Logger inside)
+    # 4️ Loop over each model (new Trainer & Logger inside)
     # ============================================================
     results = {}
     for ModelClass in models_to_run:
@@ -208,13 +208,13 @@ def test_trained_models(results, test_loader):
             model.eval()
 
             # ---------------------------------------------------
-            # 1️⃣ Lightning test accuracy (if test_step defined)
+            # Lightning test accuracy (if test_step defined)
             # ---------------------------------------------------
             metrics = trainer.test(model, dataloaders=test_loader, verbose=False)[0]
             acc = float(metrics.get("test_acc", 0.0))
             
             # ---------------------------------------------------
-            # 2️⃣ Compute confusion matrix manually
+            # Compute confusion matrix manually
             # ---------------------------------------------------
             all_preds, all_targets = [], []
             with torch.no_grad():
