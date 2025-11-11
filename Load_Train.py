@@ -157,10 +157,10 @@ def run_multiple_models(models=None, shared_parameters=None):
                 enable_progress_bar=True,
             )
 
-            # ---- Train
+            # ---- Train ----
             trainer.fit(model, train_loader, val_loader)
 
-            # ---- Load best model
+            # ---- Load best model ----
             best_path = trainer.checkpoint_callback.best_model_path
             print(f"Best model saved at: {best_path}")
             best_model = ModelClass.load_from_checkpoint(best_path, **params["MODEL_KWARGS"])
@@ -195,7 +195,7 @@ def test_trained_models(results, test_loader):
     Returns:
         dict: {model_name: {'test_acc': float, 'confusion_matrix': np.ndarray}}
     """
-
+    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     trainer = Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu")
 
     results_out = {}
