@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from copy import deepcopy
 
-from Dataset_torch import EEGDataset, EEGDataset_mel
+from Dataset_torch import EEGDataset, EEGDataset_mel, EEGDataset_with_filters
 from Models import EEGClassifier 
 from Utils import plot_training_metrics
 
@@ -40,7 +40,12 @@ def run_multiple_models(models=None, shared_parameters=None):
     
     defaults = {
         "data_path": "datasets/numpy/ssvep_10_nofilter_GCGG.npz",
-        "Dataset": EEGDataset,
+        "DATASET_CLASS": EEGDataset_with_filters,
+        "NOTCH_50": False,
+        "BANDPASS": None,
+        "HIGHPASS": None,
+        "LOWPASS": None,
+        "SAMPLE_RATE": 500,
         
         "MAX_TIME": "00:00:15:00",
         "EPOCHS": 90000,
@@ -82,7 +87,16 @@ def run_multiple_models(models=None, shared_parameters=None):
     X_all, y_all = data["X"], data["y"]
     print(f"Data loaded: X={X_all.shape}, y={y_all.shape}")
 
-    dataset = params["Dataset"](X_all, y_all, occipital_slice=params["OCCIPITAL_SLICE"])
+    dataset = params["DATASET_CLASS"](
+        X_all, 
+        y_all, 
+        occipital_slice=params["OCCIPITAL_SLICE"], 
+        notch_50=params.get("NOTCH_50", False), 
+        bandpass=params.get("BANDPASS", None), 
+        highpass=params.get("HIGHPASS", None), 
+        lowpass=params.get("LOWPASS", None), 
+        custom_filter_fn=params.get("CUSTOM_FILTER_FN", None),
+    )
 
     n_total = len(dataset)
     n_train = int(params["TRAIN_SPLIT"] * n_total)

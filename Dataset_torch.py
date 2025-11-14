@@ -50,7 +50,111 @@ class EEGDataset(Dataset):
         # return self.X[idx].unsqueeze(0), self.y[idx]
         return self.X[idx], self.y[idx]
     
-    
+
+import torch
+import numpy as np
+from torch.utils.data import Dataset
+from scipy.signal import butter, filtfilt, iirnotch
+
+
+class EEGDataset_with_filters(Dataset):
+
+    def __init__(
+        self,
+        X, y,
+        occipital_slice=None,
+        notch_50=False,
+        bandpass=None,      # (low, high)
+        highpass=None,      # cutoff
+        lowpass=None,       # cutoff
+        custom_filter_fn=None,   # lambda x: filtered_x
+        sample_rate=500
+    ):
+        """
+        Args:
+            X : (n_windows, n_channels, n_samples)
+            y : labels
+            notch_50 : bool → apply 50 Hz notch
+            bandpass : tuple(low, high)
+            highpass : float
+            lowpass : float
+            custom_filter_fn : function(x) → x, applied per window
+        """
+
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=np.int64)
+
+        # -----------------------------
+        # Filter helpers
+        # -----------------------------
+        def apply_notch(x):
+            b, a = iirnotch(50, Q=30, fs=sample_rate)
+            return filtfilt(b, a, x, axis=-1)
+
+        def apply_bandpass(x, low, high):
+            nyq = sample_rate * 0.5
+            b, a = butter(4, [low / nyq, high / nyq], btype='band')
+            return filtfilt(b, a, x, axis=-1)
+
+        def apply_lowpass(x, cutoff):
+            nyq = sample_rate * 0.5
+            b, a = butter(4, cutoff / nyq, btype='low')
+            return filtfilt(b, a, x, axis=-1)
+
+        def apply_highpass(x, cutoff):
+            nyq = sample_rate * 0.5
+            b, a = butter(4, cutoff / nyq, btype='high')
+            return filtfilt(b, a, x, axis=-1)
+
+        # -----------------------------
+        # Apply filters to all windows
+        # -----------------------------
+        for i in range(X.shape[0]):
+
+            window = X[i]  # shape (C, T)
+
+            if notch_50:
+                window = apply_notch(window)
+
+            if bandpass is not None:
+                lo, hi = bandpass
+                window = apply_bandpass(window, lo, hi)
+
+            if highpass is not None:
+                window = apply_highpass(window, highpass)
+
+            if lowpass is not None:
+                window = apply_lowpass(window, lowpass)
+
+            if custom_filter_fn is not None:
+                window = custom_filter_fn(window)
+
+            X[i] = window
+
+        # ---------------------------
+        # Normalize per-window
+        # ---------------------------
+        for i in range(X.shape[0]):
+            mean = X[i].mean()
+            std = X[i].std() if X[i].std() != 0 else 1.0
+            X[i] = (X[i] - mean) / std
+
+        # Optional channel selection
+        if occipital_slice is not None:
+            X = X[:, occipital_slice, :]
+
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.long)
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+
+
+
 
 
 
