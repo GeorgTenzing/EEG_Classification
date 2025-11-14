@@ -232,7 +232,101 @@ class EEGClassifier_mel(BaseModel):
         x = self.classifier(x)
         return x
     
-    
+
+
+class EEGNet_for_mel(BaseModel): # working
+    """
+    EEGNet v4 (Lawhern et al., 2018) — adapted for your BCI SSVEP dataset
+    Compatible with EEG input of shape (batch, n_channels, n_samples)
+    """
+    def __init__(
+        self,
+        in_channels=8,
+        n_samples=500,
+        num_classes=6,
+        dropout_rate=0.4, # 0.5
+        F1=16, # 8
+        D=4, # 2
+        F2=64,
+        kernel_length=256, # 64
+        LR=1e-3,
+        WEIGHT_DECAY=1e-5,
+        class_labels=None
+        
+    ):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+        
+        if F2 is None:
+            F2 = F1 * D
+
+        # ------------------------------------------------------------
+        # EEGNet feature extractor
+        # ------------------------------------------------------------
+        self.firstconv = nn.Sequential(
+            nn.Conv2d(1, F1, (1, kernel_length),
+                      padding=(0, kernel_length // 2),
+                      bias=False),
+            nn.BatchNorm2d(F1)
+        )
+
+        self.depthwiseConv = nn.Sequential(
+            nn.Conv2d(F1, F1 * D, (in_channels, 1),
+                      groups=F1,
+                      bias=False),
+            nn.BatchNorm2d(F1 * D),
+            nn.ELU(),
+            nn.AvgPool2d((1, 4)),
+            nn.Dropout(dropout_rate)
+        )
+
+        self.separableConv = nn.Sequential(
+            nn.Conv2d(F1 * D, F1 * D, (1, 16),
+                      padding=(0, 8),
+                      groups=F1 * D,
+                      bias=False),
+            nn.Conv2d(F1 * D, F2, 1, bias=False),
+            nn.BatchNorm2d(F2),
+            nn.ELU(),
+            nn.AvgPool2d((1, 8)),
+            nn.Dropout(dropout_rate)
+        )
+
+        # Compute flattened size dynamically
+        with torch.no_grad():
+            dummy = torch.zeros(1, 1, in_channels, n_samples)
+            dummy = self.forward_features(dummy)
+            self.flatten_dim = dummy.shape[1]
+
+        # ------------------------------------------------------------
+        # Classification head
+        # ------------------------------------------------------------
+        self.classifier = nn.Linear(self.flatten_dim, num_classes)
+
+        # ------------------------------------------------------------
+        # Metrics
+        # ------------------------------------------------------------
+        self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
+        self.test_acc  = Accuracy(task="multiclass", num_classes=num_classes)
+        self.test_cm = ConfusionMatrix(task="multiclass", num_classes=num_classes)
+
+    # ------------------------------------------------------------
+    # Forward path
+    # ------------------------------------------------------------
+    def forward_features(self, x):
+        x = self.firstconv(x)
+        x = self.depthwiseConv(x)
+        x = self.separableConv(x)
+        x = x.flatten(start_dim=1)
+        return x
+
+    def forward(self, x):
+        # Input: (batch, channels, samples)
+        # x = x.unsqueeze(1)  # (batch, 1, channels, samples)
+        B, C, H, W = x.shape   # x is mel spectrogram input
+        x = x.reshape(B, 1, C, H * W)
+        feats = self.forward_features(x)
+        out = self.classifier(feats)
+        return out 
     
     
     
