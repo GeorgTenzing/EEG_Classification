@@ -314,9 +314,9 @@ class EEGNet(BaseModel): # working
         n_samples=500,
         num_classes=6,
         dropout_rate=0.4, # 0.5
-        F1=32, # 8, 16
-        D=8, # 2, 16
-        F2=128, # 64 
+        F1=32, # 8, 32
+        D=8,     # 2, 8
+        F2=128, # 128 
         kernel_length=256, # 64
         LR=1e-3,
         WEIGHT_DECAY=1e-5,
