@@ -1,8 +1,8 @@
 import torch
 import numpy as np
 from torch.utils.data import Dataset
-# import torchaudio
-# from torchaudio.transforms import MelSpectrogram
+import torchaudio
+from torchaudio.transforms import MelSpectrogram
 
 
 
@@ -54,98 +54,98 @@ class EEGDataset(Dataset):
 
 
 
-# class EEGDataset_(Dataset):
-#     def __init__(
-#         self, 
-#         X, y, 
-#         occipital_slice=None,
-#         transform="mel",          # "mel", "fft", "stft", None
-#         sample_rate=500,
-#         n_mels=64
-#     ):
-#         """
-#         Args:
-#             transform: One of {"mel", "fft", "stft", None}
-#         """
-#         X = np.asarray(X, dtype=np.float32)
-#         y = np.asarray(y, dtype=np.int64)
+class EEGDataset_mel(Dataset):
+    def __init__(
+        self, 
+        X, y, 
+        occipital_slice=None,
+        transform="mel",          # "mel", "fft", "stft", None
+        sample_rate=500,
+        n_mels=64
+    ):
+        """
+        Args:
+            transform: One of {"mel", "fft", "stft", None}
+        """
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=np.int64)
 
-#         n_windows = X.shape[0]
+        n_windows = X.shape[0]
 
-#         # Normalize each window
-#         for i in range(n_windows):
-#             m = X[i].mean()
-#             s = X[i].std() if X[i].std() != 0 else 1.0
-#             X[i] = (X[i] - m) / s
+        # Normalize each window
+        for i in range(n_windows):
+            m = X[i].mean()
+            s = X[i].std() if X[i].std() != 0 else 1.0
+            X[i] = (X[i] - m) / s
 
-#         # Optional channel selection
-#         if occipital_slice is not None:
-#             X = X[:, occipital_slice, :]
+        # Optional channel selection
+        if occipital_slice is not None:
+            X = X[:, occipital_slice, :]
 
-#         self.X = torch.tensor(X, dtype=torch.float32)
-#         self.y = torch.tensor(y, dtype=torch.long)
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.long)
 
-#         # Store parameters
-#         self.transform = transform
-#         self.sample_rate = sample_rate
-#         self.n_mels = n_mels
+        # Store parameters
+        self.transform = transform
+        self.sample_rate = sample_rate
+        self.n_mels = n_mels
 
-#         # Pre-create torchaudio transforms
-#         if transform == "mel":
-#             self.mel = MelSpectrogram(
-#                 sample_rate=sample_rate,
-#                 n_mels=n_mels,
-#                 normalized=True
-#             )
+        # Pre-create torchaudio transforms
+        if transform == "mel":
+            self.mel = MelSpectrogram(
+                sample_rate=sample_rate,
+                n_mels=n_mels,
+                normalized=True
+            )
 
-#     # -------------------------------------------------------
-#     # Transformation functions
-#     # -------------------------------------------------------
-#     def apply_mel(self, x):
-#         """Apply MelSpectrogram per channel."""
-#         mel_list = []
-#         for c in range(x.shape[0]):
-#             mel = self.mel(x[c].unsqueeze(0))  # (1, n_mels, frames)
-#             mel_list.append(mel.squeeze(0))
-#         return torch.stack(mel_list)          # (channels, n_mels, frames)
+    # -------------------------------------------------------
+    # Transformation functions
+    # -------------------------------------------------------
+    def apply_mel(self, x):
+        """Apply MelSpectrogram per channel."""
+        mel_list = []
+        for c in range(x.shape[0]):
+            mel = self.mel(x[c].unsqueeze(0))  # (1, n_mels, frames)
+            mel_list.append(mel.squeeze(0))
+        return torch.stack(mel_list)          # (channels, n_mels, frames)
 
-#     def apply_fft(self, x):
-#         """Apply magnitude FFT per channel."""
-#         # x: (channels, samples)
-#         Xf = torch.fft.rfft(x, dim=-1)         # complex
-#         mag = torch.abs(Xf)                    # magnitude
-#         return mag                              # (channels, freq_bins)
+    def apply_fft(self, x):
+        """Apply magnitude FFT per channel."""
+        # x: (channels, samples)
+        Xf = torch.fft.rfft(x, dim=-1)         # complex
+        mag = torch.abs(Xf)                    # magnitude
+        return mag                              # (channels, freq_bins)
 
-#     def apply_stft(self, x):
-#         """Short-Time Fourier Transform per channel."""
-#         stft_list = []
-#         for c in range(x.shape[0]):
-#             Z = torch.stft(
-#                 x[c],
-#                 n_fft=128,
-#                 hop_length=64,
-#                 window=torch.hann_window(128),
-#                 return_complex=True
-#             )
-#             stft_list.append(torch.abs(Z))     # magnitude: (freq, frames)
-#         return torch.stack(stft_list)          # (channels, freq, frames)
+    def apply_stft(self, x):
+        """Short-Time Fourier Transform per channel."""
+        stft_list = []
+        for c in range(x.shape[0]):
+            Z = torch.stft(
+                x[c],
+                n_fft=128,
+                hop_length=64,
+                window=torch.hann_window(128),
+                return_complex=True
+            )
+            stft_list.append(torch.abs(Z))     # magnitude: (freq, frames)
+        return torch.stack(stft_list)          # (channels, freq, frames)
 
-#     # -------------------------------------------------------
-#     # __getitem__ uses the selected transform
-#     # -------------------------------------------------------
-#     def __getitem__(self, idx):
-#         x = self.X[idx]
+    # -------------------------------------------------------
+    # __getitem__ uses the selected transform
+    # -------------------------------------------------------
+    def __getitem__(self, idx):
+        x = self.X[idx]
 
-#         if self.transform == "mel":
-#             x = self.apply_mel(x)
+        if self.transform == "mel":
+            x = self.apply_mel(x)
 
-#         elif self.transform == "fft":
-#             x = self.apply_fft(x)
+        elif self.transform == "fft":
+            x = self.apply_fft(x)
 
-#         elif self.transform == "stft":
-#             x = self.apply_stft(x)
+        elif self.transform == "stft":
+            x = self.apply_stft(x)
 
-#         return x, self.y[idx]
+        return x, self.y[idx]
 
-#     def __len__(self):
-#         return len(self.y)
+    def __len__(self):
+        return len(self.y)

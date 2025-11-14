@@ -48,26 +48,11 @@ def get_eeg_data_segmented(
     trigger = df["Trigger"].values
     print(f"Loaded: EEG shape {eeg.shape}, Trigger shape {trigger.shape}")
 
-    # --- sadly not optional slicing ---
+    # --- Necessary slicing ---
     if data_slice is not None:
         eeg = eeg[:, data_slice]
         trigger = trigger[data_slice]
         print(f"After slicing: EEG shape {eeg.shape}, Trigger shape {trigger.shape}\n")
-
-    # --- Optional filtering ---
-    def bandpass_filter(data, lowcut, highcut, fs, order=5):
-        nyq = 0.5 * fs
-        low, high = lowcut / nyq, highcut / nyq
-        b, a = butter(order, [low, high], btype='band')
-        return filtfilt(b, a, data, axis=1)
-
-    def notch_filter(data, freq, fs, quality=30):
-        b, a = iirnotch(w0=freq, Q=quality, fs=fs)
-        return filtfilt(b, a, data, axis=1)
-
-    if filter:
-        eeg = notch_filter(eeg, freq=50, fs=sample_rate)
-        eeg = bandpass_filter(eeg, lowcut=5, highcut=40, fs=sample_rate)
 
     # --- Compute windowing parameters ---
     win_len = int(window_size * sample_rate)
@@ -111,19 +96,20 @@ def get_eeg_data_segmented(
     print(f"\nExtracted {len(y)} windows, shape={X.shape}, classes={np.unique(y)}")
     print(f"X shape: {X.shape}, y shape: {y.shape}")
 
+
+    # --- Optional removal of specific labels (e.g., remove label 0) ---
+    if remove_labels:
+        mask = ~np.isin(y, remove_labels)  # remove_labels can be list
+        X = X[mask]
+        y = y[mask]
+        
     # --- Optional relabeling ---
     if relabel_map is not None:
         y = np.vectorize(relabel_map.get)(y)
         print(f"Relabeled classes using mapping: {relabel_map}")
         print(f"New label set: {np.unique(y)}")
     
-    # --- Optional removal of specific labels (e.g., remove label 0) ---
-    if remove_labels:
-        mask = ~np.isin(y, remove_labels)  # remove_labels can be list
-        X = X[mask]
-        y = y[mask]
-    
-    
+
 
     # --- Optional save ---
     if save_npz_path:
@@ -148,6 +134,7 @@ def load_and_concat_ssvep_datasets(
     overlap=0.5,
     verbose=True,
     filter=False,
+    target_label=None,
     keep_ratio=0.2,
     remove_labels=None,
 ):
@@ -176,6 +163,12 @@ def load_and_concat_ssvep_datasets(
             Print debug info for each file.
         filter : bool
             Apply bandpass + notch filtering.
+        target_label : int
+            Label to downsample (e.g., 0 for non-SSVEP).
+        keep_ratio : float
+            Fraction of target_label windows to keep.
+        remove_labels : list of int
+            List of labels to remove from final dataset.
 
     Returns:
         X_all : np.ndarray, shape (sum_i n_windows_i, n_channels, n_samples)
@@ -252,8 +245,12 @@ def load_and_concat_ssvep_datasets(
     )
     print(f"   Classes present: y={np.unique(y_all)}, trigger={np.unique(trigger_all)}")
 
-    # --- Balance classes by downsampling label 0 ---
-    X_bal, y_bal = downsample_label(X_all, y_all, target_label=0, keep_ratio=keep_ratio)
+    # --- Optional: Balance classes by downsampling target label ---
+    if target_label is not None:
+        print(f"\n--- Downsampling label {target_label} to keep ratio {keep_ratio} ---")
+        X_bal, y_bal = downsample_label(X_all, y_all, target_label=target_label, keep_ratio=keep_ratio)
+    else:
+        X_bal, y_bal = X_all, y_all
 
     return X_all, y_all, X_bal, y_bal, eeg_all, trigger_all, 
 

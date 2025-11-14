@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from copy import deepcopy
 
-from Dataset_torch import EEGDataset
+from Dataset_torch import EEGDataset, EEGDataset_mel
 from Models import EEGClassifier 
 from Utils import plot_training_metrics
 
@@ -40,6 +40,7 @@ def run_multiple_models(models=None, shared_parameters=None):
     
     defaults = {
         "data_path": "datasets/numpy/ssvep_10_nofilter_GCGG.npz",
+        "Dataset": EEGDataset,
         
         "MAX_TIME": "00:00:15:00",
         "EPOCHS": 90000,
@@ -64,6 +65,7 @@ def run_multiple_models(models=None, shared_parameters=None):
             "num_classes": 6,
             "LR": 1e-3,
             "WEIGHT_DECAY": 0.0,
+            "class_labels": [0, 7, 10.5, 12, 15.2, 18.1],
         },
         "testing": True,
     }
@@ -80,7 +82,7 @@ def run_multiple_models(models=None, shared_parameters=None):
     X_all, y_all = data["X"], data["y"]
     print(f"Data loaded: X={X_all.shape}, y={y_all.shape}")
 
-    dataset = EEGDataset(X_all, y_all, occipital_slice=params["OCCIPITAL_SLICE"])
+    dataset = params["Dataset"](X_all, y_all, occipital_slice=params["OCCIPITAL_SLICE"])
 
     n_total = len(dataset)
     n_train = int(params["TRAIN_SPLIT"] * n_total)

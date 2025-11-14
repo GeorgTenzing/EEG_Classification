@@ -15,7 +15,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 # Hierachical model definition example  
 class BaseModel(pl.LightningModule):
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5):
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None):
         super().__init__()
         self.in_channels = in_channels
         self.num_classes = num_classes
@@ -23,6 +23,7 @@ class BaseModel(pl.LightningModule):
         self.lr = LR
         self.weight_decay = WEIGHT_DECAY
         self.criterion = nn.CrossEntropyLoss()
+        self.class_labels = class_labels
         # self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
         self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
@@ -40,12 +41,15 @@ class BaseModel(pl.LightningModule):
     def training_step(self, batch):
         X, y = batch
         preds = self(X)
-        # Define class weights (you can tune the first one for label 0)
-        # weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
-        weights = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
-        weights[0] = 0.5
-        # Use weighted cross-entropy
-        criterion = nn.CrossEntropyLoss(weight=weights)
+        
+        # # Define class weights (you can tune the first one for label 0)
+        # # weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
+        # weights = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
+        # weights[0] = 0.5
+        # # Use weighted cross-entropy
+        # criterion = nn.CrossEntropyLoss(weight=weights)
+        
+        criterion = nn.CrossEntropyLoss()
         loss = criterion(preds, y)
         
         # loss = nn.functional.cross_entropy(preds, y)
@@ -109,19 +113,22 @@ class BaseModel(pl.LightningModule):
     #     # Reset confusion matrix
     #     self.test_cm.reset()
 
-    def on_test_epoch_end(self):
+    def on_test_epoch_end____(self):
         # --- Compute confusion matrix ---
         cm = self.test_cm.compute().cpu().numpy()
         num_classes = cm.shape[0]
 
         # --- Class labels ---
+        class_labels = self.class_labels
         # Default sorted SSVEP frequencies (Hz)
-        if num_classes == 5:
-            class_labels = [7, 10.5, 12, 15.2, 18.1]
-        if num_classes == 6:
-            class_labels = [0, 7, 10.5, 12, 15.2, 18.1]
-        elif num_classes == 11:
-            class_labels = [0, 5, 7, 8.6, 10.5, 11, 12, 13.4, 15.2, 17, 18.1]
+        # if num_classes == 4:
+        #     class_labels = [10.5, 12, 15.2, 18.1]
+        # if num_classes == 5:
+        #     class_labels = [7, 10.5, 12, 15.2, 18.1]
+        # if num_classes == 6:
+        #     class_labels = [0, 7, 10.5, 12, 15.2, 18.1]
+        # elif num_classes == 11:
+        #     class_labels = [0, 5, 7, 8.6, 10.5, 11, 12, 13.4, 15.2, 17, 18.1]
         
         # --- Compute per-class accuracies ---
         class_acc = cm.diagonal() / cm.sum(axis=1)
@@ -161,9 +168,150 @@ class BaseModel(pl.LightningModule):
 
         # --- Reset confusion matrix for next epoch ---
         self.test_cm.reset()
+    
+    def on_test_epoch_end(self):
+        # --- Compute confusion matrix ---
+        cm = self.test_cm.compute().cpu().numpy()
+        num_classes = cm.shape[0]
+
+        # --- Normalize confusion matrix row-wise to get percentages ---
+        # Each row sums to 1 (or 100%)
+        cm_percent = cm / cm.sum(axis=1, keepdims=True) * 100
+
+        # --- Class labels ---
+        class_labels = self.class_labels
+
+        # --- Compute per-class accuracies ---
+        class_acc = cm.diagonal() / cm.sum(axis=1)
+        for i, acc in enumerate(class_acc):
+            self.log(f"class_{i}_acc", acc)
+            print(f"Class {class_labels[i]} accuracy: {acc:.3f}")
+
+        # --- Plot percentage confusion matrix ---
+        fig, ax = plt.subplots(figsize=(6, 5))
+
+        # Percent-based heatmap
+        im = ax.imshow(cm_percent, interpolation='nearest', cmap='Blues', vmin=0, vmax=100)
+
+        ax.set_title("Confusion Matrix (% per true class)")
+        ax.set_xlabel("Predicted label")
+        ax.set_ylabel("True label")
+
+        # Tick marks
+        ax.set_xticks(np.arange(num_classes))
+        ax.set_yticks(np.arange(num_classes))
+        ax.set_xticklabels(class_labels)
+        ax.set_yticklabels(class_labels)
+
+        # Rotate tick labels
+        plt.setp(ax.get_xticklabels(), rotation=30, ha="right", rotation_mode="anchor")
+
+        # Annotate each cell with PERCENT (not counts)
+        for i in range(num_classes):
+            for j in range(num_classes):
+                value = cm_percent[i, j]
+                color = "white" if value > 50 else "black"
+                ax.text(j, i, f"{value:.1f}%", ha="center", va="center", color=color, fontsize=10)
+
+        # Colorbar (0% to 100%)
+        cbar = fig.colorbar(im, ax=ax)
+        cbar.set_label("Percentage (%)")
+
+        fig.tight_layout()
+        plt.show()
+
+        # --- Reset confusion matrix ---
+        self.test_cm.reset()
 
 
 
+
+
+
+
+
+
+class EEGClassifier_mel(BaseModel):
+    """
+    Classifier for MelSpectrogram and STFT spectrogram EEG representations.
+    
+    Expects input shape:
+        (batch, C, H, W)
+    where:
+        - C = EEG channels
+        - H = n_mels (Mel mode) or freq_bins (STFT mode)
+        - W = time_frames
+    """
+
+    def __init__(self, in_shape, num_classes=6, model_type="mel", dropout=0.3):
+        super().__init__()
+
+        assert model_type in ["mel", "stft"], \
+            f"model_type must be 'mel' or 'stft', got {model_type}"
+
+        self.model_type = model_type
+
+        C, H, W = in_shape  # channels, freq/mels, frames
+
+        # -----------------------------------------------------------
+        # Feature extractor: Conv2D CNN
+        # -----------------------------------------------------------
+        self.features = nn.Sequential(
+            # Block 1
+            nn.Conv2d(C, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+
+            # Block 2
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+
+            # Block 3
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+
+            # Block 4
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+
+            # Compress to 1x1
+            nn.AdaptiveMaxPool2d((1, 1)),
+            nn.Dropout(dropout),
+        )
+
+        # -----------------------------------------------------------
+        # Classification head
+        # -----------------------------------------------------------
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Dropout(0.4),
+            nn.Linear(128, num_classes)
+        )
+
+        # Weight initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+
+    # -----------------------------------------------------------
+    # Forward
+    # -----------------------------------------------------------
+    def forward(self, x):
+        # x shape: (B, C, H, W)
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
 
 
 
@@ -175,8 +323,8 @@ class BaseModel(pl.LightningModule):
 
 
 class EEGClassifier(BaseModel): # working, best 78% val acc, 74% test acc
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
 
         # --- Feature extractor ---
         self.features = nn.Sequential(

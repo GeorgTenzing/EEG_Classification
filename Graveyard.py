@@ -2,6 +2,20 @@
 
 
 
+    # --- Optional filtering ---
+    def bandpass_filter(data, lowcut, highcut, fs, order=5):
+        nyq = 0.5 * fs
+        low, high = lowcut / nyq, highcut / nyq
+        b, a = butter(order, [low, high], btype='band')
+        return filtfilt(b, a, data, axis=1)
+
+    def notch_filter(data, freq, fs, quality=30):
+        b, a = iirnotch(w0=freq, Q=quality, fs=fs)
+        return filtfilt(b, a, data, axis=1)
+
+    if filter:
+        eeg = notch_filter(eeg, freq=50, fs=sample_rate)
+        eeg = bandpass_filter(eeg, lowcut=5, highcut=40, fs=sample_rate)
 
 
 
