@@ -245,9 +245,3 @@ def test_trained_models(results, test_loader):
     print("\nTesting complete for all models.\n")
     return results_out
 
-
-def plot_all_results(results, test_results=None):
-    for name, info in results.items():
-        print(f"\nPlotting {name}: Test Accuracy = {test_results[name]['test_acc']:.3f}")
-        plot_training_metrics(info["metrics_path"])
-        

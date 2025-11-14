@@ -47,7 +47,7 @@ def get_eeg_data_segmented(
     trigger = df["Trigger"].values
     print(f"Loaded: EEG shape {eeg.shape}, Trigger shape {trigger.shape}")
 
-    # --- Optional slicing ---
+    # --- sadly not optional slicing ---
     if data_slice is not None:
         eeg = eeg[:, data_slice]
         trigger = trigger[data_slice]
@@ -86,12 +86,6 @@ def get_eeg_data_segmented(
     # --- Segment EEG by trigger regions ---
     X, y = [], []
     regions = contiguous_regions(trigger)
-
-    # if verbose:
-    #     print("\n=== Detected contiguous regions (label, start, end, length) ===")
-    #     for (label, start, end) in regions:
-    #         print(f"Label {label:<3} | Start: {start:<6} | End: {end:<6} | Len: {end-start}")
-    #     print("Total regions detected:", len(regions))
     
     if verbose:
         print("\n=== Detected contiguous regions (label, start, end, length) ===")
@@ -233,11 +227,12 @@ def load_and_concat_ssvep_datasets(
             )
 
     # --- Concatenate ---
-    X_all = np.concatenate(X_list, axis=0)
-    y_all = np.concatenate(y_list, axis=0)
-    eeg_all = np.concatenate(eeg_list, axis=1)
+    X_all       = np.concatenate(X_list, axis=0)
+    y_all       = np.concatenate(y_list, axis=0)
+    eeg_all     = np.concatenate(eeg_list, axis=1)
     trigger_all = np.concatenate(trigger_list, axis=0)
 
+    # --- Summary ---
     print(
         f"\n   Combined all datasets:"
         f"\n   X={X_all.shape}, y={y_all.shape}"
@@ -312,12 +307,9 @@ def plot_training_metrics(csv_path):
     plt.show()
 
 
-# For testing: 
 
-# print(f"X shape: {X.shape}, y shape: {y.shape}")
-# plt.figure(figsize=(10,4))
-# plt.plot(X[37, 0, :])  # 27th window, first channel, all 500 samples 
-# plt.show()
-# plt.figure(figsize=(10,4))
-# plt.plot(y[37, :])
-# plt.show()
+def plot_all_results(results, test_results=None):
+    for name, info in results.items():
+        print(f"\nPlotting {name}: Test Accuracy = {test_results[name]['test_acc']:.3f}")
+        plot_training_metrics(info["metrics_path"])
+        
