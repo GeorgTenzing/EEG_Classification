@@ -10,11 +10,11 @@ from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 from copy import deepcopy
 
-from Models import EEGDataset   
+from Dataset_torch import EEGDataset
+from Models import EEGClassifier 
 from Utils import plot_training_metrics
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-torch.set_float32_matmul_precision('high')        # for better performance on some hardware
     
 import logging
 import warnings
@@ -65,6 +65,7 @@ def run_multiple_models(models=None, shared_parameters=None):
             "LR": 1e-3,
             "WEIGHT_DECAY": 0.0,
         },
+        "testing": True,
     }
         
     params = deepcopy(defaults)
@@ -72,7 +73,7 @@ def run_multiple_models(models=None, shared_parameters=None):
         params.update(shared_parameters)
 
     # ============================================================
-    # 1️ Load and prepare dataset once
+    # 1️ Load, prepare and split datasets
     # ============================================================
     print(f"Loading data from: {params['data_path']}")
     data = np.load(params["data_path"])
@@ -93,7 +94,7 @@ def run_multiple_models(models=None, shared_parameters=None):
     print(f"Dataset split: Train={len(train_ds)}, Val={len(val_ds)}, Test={len(test_ds)}")
 
     # ============================================================
-    # 2️ Create dataloaders once
+    # 2️ Create dataloaders for each split
     # ============================================================
     train_loader = DataLoader(
         train_ds, batch_size=params["BATCH_SIZE"], shuffle=params["SHUFFLE"],
@@ -103,32 +104,21 @@ def run_multiple_models(models=None, shared_parameters=None):
     val_loader  = DataLoader(val_ds, batch_size=64, shuffle=False, num_workers=4)
     test_loader = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=4)
     print("Dataloaders ready")
-
+    
     # ============================================================
-    # 3️ Define available models if none given
+    # 3️ Loop over each model (new Trainer & Logger inside)
     # ============================================================
-    from Models import (
-        EEGClassifier, EEGNet, MNISTNet,
-    )
-
-    all_models = [
-        EEGClassifier, EEGNet, MNISTNet,
-    ]
-
-    models_to_run = models or all_models
-    # ============================================================
-    # 4️ Loop over each model (new Trainer & Logger inside)
-    # ============================================================
+    models_to_run = models or [EEGClassifier]
     results = {}
     for ModelClass in models_to_run:
         model_name = ModelClass.__name__
         print(f"\nTraining {model_name}...\n")
 
-        try:
-            # ---- Create model
+        try: 
+            # ---- Create model ----
             model = ModelClass(**params["MODEL_KWARGS"]).to(device)
 
-            # ---- Logger and checkpoint (unique per model)
+            # ---- Logger and checkpoint (unique per model) ----
             csv_logger = CSVLogger("logs", name=model_name)
             checkpoint = ModelCheckpoint(
                 monitor="val_acc", mode="max", save_top_k=1,
@@ -136,7 +126,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 auto_insert_metric_name=False,
             )
 
-            # ---- Fresh trainer for this model
+            # ---- Fresh trainer for each model ----
             trainer = Trainer(
                 max_time=params["MAX_TIME"],
                 max_epochs=params["EPOCHS"],
@@ -153,7 +143,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 
                 logger=csv_logger,
                 num_sanity_val_steps=0,
-                log_every_n_steps=1,
+                log_every_n_steps=0,
                 enable_progress_bar=True,
             )
 
@@ -172,6 +162,49 @@ def run_multiple_models(models=None, shared_parameters=None):
                 "best_model": best_model,
                 "metrics_path": metrics_path
             }
+            
+            if params["testing"] == True:
+                best_model = best_model.to(device)
+                best_model.eval()
+                metrics = trainer.test(best_model, dataloaders=test_loader, verbose=False)[0]
+                acc = float(metrics.get("test_acc", 0.0))
+                print(f"{model_name}: Test accuracy = {acc:.3f}")
+                
+                # ---------------------------------------------------
+                # Compute confusion matrix manually
+                # ---------------------------------------------------
+                all_preds, all_targets = [], []
+                with torch.no_grad():
+                    for X, y in test_loader:
+                        preds = model(X)
+                        preds = torch.argmax(preds, dim=1)
+                        all_preds.append(preds.cpu())
+                        all_targets.append(y.cpu())
+                all_preds   = torch.cat(all_preds)
+                all_targets = torch.cat(all_targets)
+
+                # Use torchmetrics for a consistent CM
+                cm_metric = ConfusionMatrix(task="multiclass", num_classes=int(torch.max(all_targets)) + 1)
+                cm = cm_metric(all_preds, all_targets).numpy()
+                
+                # # Print class-wise accuracies
+                # class_accuracies = cm.diagonal() / cm.sum(axis=1)
+                # for i, class_acc in enumerate(class_accuracies):
+                #     print(f"  Class {i} Accuracy: {class_acc:.3f}")
+                
+                # # Print confusion matrix
+                # print("Confusion Matrix:")
+                # print(cm)
+                
+                # Plot training metrics
+                for name, info in results.items():
+                    print(f"\nPlotting {name}: Test Accuracy = {acc:.3f}")
+                    plot_training_metrics(info["metrics_path"])
+            
+            
+            
+            
+            
 
         except Exception as e:
             print(f"Error training {model_name}: {e}")
@@ -211,6 +244,7 @@ def test_trained_models(results, test_loader):
             # ---------------------------------------------------
             metrics = trainer.test(model, dataloaders=test_loader, verbose=False)[0]
             acc = float(metrics.get("test_acc", 0.0))
+            print(f"{name}: Test accuracy = {acc:.3f}")
             
             # ---------------------------------------------------
             # Compute confusion matrix manually
@@ -234,8 +268,6 @@ def test_trained_models(results, test_loader):
                 "test_acc": acc,
                 "confusion_matrix": cm
             }
-
-            print(f"{name}: Test accuracy = {acc:.3f}")
 
         except Exception as e:
             print(f"Error testing {name}: {e}")

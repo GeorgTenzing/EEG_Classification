@@ -12,55 +12,6 @@ from torchmetrics.classification import Accuracy, ConfusionMatrix
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 
-# ============================================================
-# 1. Unified preprocessing + dataset class
-# ============================================================
-class EEGDataset(Dataset):
-    """
-    EEG dataset with built-in preprocessing:
-      - trial-wise normalization
-      - channel selection (now 8 EEG channels)
-      - conversion to tensors
-    """
-    def __init__(self, X, y, occipital_slice=None):
-        """
-        Args:
-            X (np.ndarray): EEG data (n_windows, n_channels, n_samples)
-            y (np.ndarray): Labels   (n_windows, n_samples)
-            occipital_slice (slice): Optional channel selection slice
-        """
-
-        X = np.asarray(X, dtype=np.float32)
-        y = np.asarray(y, dtype=np.int64)
-
-        n_windows = X.shape[0]
-
-        # --- Normalize each windows individually ---
-        for i in range(n_windows):
-            mean = X[i].mean()
-            std  = X[i].std() if X[i].std() != 0 else 1.0
-            X[i] = (X[i] - mean) / std
-
-        # --- Channel selection (for your setup: 8 channels total) ---
-        if occipital_slice is not None:
-            X = X[:, occipital_slice, :]
-
-        # --- Convert to tensors ---
-        self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.long)
-
-    def __len__(self):
-        return len(self.y)
-
-    def __getitem__(self, idx):
-        # return self.X[idx].unsqueeze(0), self.y[idx]
-        return self.X[idx], self.y[idx]
-    
-    
-
-
-
-
 
 # Hierachical model definition example  
 class BaseModel(pl.LightningModule):
@@ -165,20 +116,13 @@ class BaseModel(pl.LightningModule):
 
         # --- Class labels ---
         # Default sorted SSVEP frequencies (Hz)
+        if num_classes == 5:
+            class_labels = [7, 10.5, 12, 15.2, 18.1]
         if num_classes == 6:
             class_labels = [0, 7, 10.5, 12, 15.2, 18.1]
         elif num_classes == 11:
             class_labels = [0, 5, 7, 8.6, 10.5, 11, 12, 13.4, 15.2, 17, 18.1]
-        # class_labels = getattr(self, "class_labels", [f"C{i}" for i in range(num_classes)])
-
-        # # --- Print matrix nicely in console ---
-        # print("\n📊 Confusion Matrix (counts):")
-        # header = "\t".join([f"{lbl:>6}" for lbl in class_labels])
-        # print(f"{'':8s}{header}")
-        # for i, row in enumerate(cm):
-        #     row_str = "\t".join([f"{int(v):6d}" for v in row])
-        #     print(f"{class_labels[i]:>6} | {row_str}")
-
+        
         # --- Compute per-class accuracies ---
         class_acc = cm.diagonal() / cm.sum(axis=1)
         for i, acc in enumerate(class_acc):

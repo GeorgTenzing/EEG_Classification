@@ -17,6 +17,7 @@ def get_eeg_data_segmented(
         filter=False,
         save_npz_path=None,
         relabel_map=None,
+        remove_labels=None,
 ):
     """
     Load EEG SSVEP CSV, segment EEG into windows, and optionally relabel classes.
@@ -115,6 +116,14 @@ def get_eeg_data_segmented(
         y = np.vectorize(relabel_map.get)(y)
         print(f"Relabeled classes using mapping: {relabel_map}")
         print(f"New label set: {np.unique(y)}")
+    
+    # --- Optional removal of specific labels (e.g., remove label 0) ---
+    if remove_labels:
+        mask = ~np.isin(y, remove_labels)  # remove_labels can be list
+        X = X[mask]
+        y = y[mask]
+    
+    
 
     # --- Optional save ---
     if save_npz_path:
@@ -139,6 +148,8 @@ def load_and_concat_ssvep_datasets(
     overlap=0.5,
     verbose=True,
     filter=False,
+    keep_ratio=0.2,
+    remove_labels=None,
 ):
     """
     Load and combine multiple SSVEP EEG datasets from CSV files,
@@ -206,6 +217,7 @@ def load_and_concat_ssvep_datasets(
                 verbose=verbose,
                 filter=filter,
                 relabel_map=relabel_map,
+                remove_labels=remove_labels,
             )
             X_list.append(X)
             y_list.append(y)
@@ -240,21 +252,17 @@ def load_and_concat_ssvep_datasets(
     )
     print(f"   Classes present: y={np.unique(y_all)}, trigger={np.unique(trigger_all)}")
 
-    return X_all, y_all, eeg_all, trigger_all
+    # --- Balance classes by downsampling label 0 ---
+    X_bal, y_bal = downsample_label(X_all, y_all, target_label=0, keep_ratio=keep_ratio)
+
+    return X_all, y_all, X_bal, y_bal, eeg_all, trigger_all, 
 
 
 
-
-
-
-
-
-
-def downsample_label(X, y, target_label=0, keep_ratio=0.1, seed=42):
+def downsample_label(X, y, target_label=0, keep_ratio=0.2, seed=42):
     """
     Randomly keep only a fraction of samples from the given target_label.
-    For example, keep_ratio=0.1 keeps 10% of all label 0 windows.
-    I think it was 0.2 before
+    For example, keep_ratio=0.2 keeps 20% of all label 0 windows.
 
     Returns:
         X_balanced, y_balanced
@@ -272,9 +280,16 @@ def downsample_label(X, y, target_label=0, keep_ratio=0.1, seed=42):
     # combine and shuffle
     keep_idx = np.concatenate([keep_idx_target, idx_other])
     np.random.shuffle(keep_idx)
+    
+    X_bal = X[keep_idx]
+    y_bal = y[keep_idx]
+    
+    print("Before:", np.unique(y, return_counts=True))
+    print(X.shape, y.shape)
+    print("After:",  np.unique(y_bal, return_counts=True))
+    print(X_bal.shape, y_bal.shape)
 
-    return X[keep_idx], y[keep_idx]
-
+    return X_bal, y_bal
 
 
 

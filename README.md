@@ -7,5 +7,15 @@ small ideas / todos:
 - work on integrating it into drone control 
 - work on live usage
 
-do we still need lightning_logs ? 
-do we need to upload __pycache__ ? 
+
+Model ideas: 
+# Ideas: big issue might be data, 
+# random parameters: weighs in validation, lr, preproc 
+
+TODOs:
+- confusion matrix scale in percentage 
+- find a way to retest models ur use them to evaluate data, aka load them from checkpoint 
+
+
+after training, do testing, print class accuracies and confusion matrix and plot val results and save all in the folder with the metrics.csv, 
+check on new data 
