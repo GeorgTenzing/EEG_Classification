@@ -336,15 +336,24 @@ class EEGClassifier_mel_with_res(BaseModel):
 
 
 
-
-
 class DepthwiseSeparableConv(nn.Module):
-    """MobileNet-style depthwise + pointwise conv, very parameter-efficient."""
+    """MobileNet-style depthwise + pointwise conv."""
     def __init__(self, in_ch, out_ch, stride=1):
         super().__init__()
-        self.depthwise = nn.Conv2d(in_ch, in_ch, kernel_size=3, stride=stride,
-                                   padding=1, groups=in_ch, bias=False)
-        self.pointwise = nn.Conv2d(in_ch, out_ch, kernel_size=1, bias=False)
+        self.depthwise = nn.Conv2d(
+            in_ch, in_ch,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            groups=in_ch,
+            bias=False
+        )
+        self.pointwise = nn.Conv2d(
+            in_ch,
+            out_ch,
+            kernel_size=1,
+            bias=False
+        )
         self.bn = nn.BatchNorm2d(out_ch)
         self.act = nn.ReLU(inplace=True)
 
@@ -357,52 +366,82 @@ class DepthwiseSeparableConv(nn.Module):
 
 class EEGClassifier_mel_small(BaseModel):
     """
-    Tiny yet powerful model for MelSpectrogram/STFT EEG.
-    < 300k parameters.
+    Tiny Mel/STFT classifier (<300k parameters)
+    Works with input shapes: (B, 8, H, W)
     """
 
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, dropout=0.25):
+    def __init__(
+        self,
+        in_channels=8,
+        num_classes=6,
+        LR=1e-3,
+        WEIGHT_DECAY=1e-5,
+        class_labels=None,
+        dropout=0.25,
+    ):
         super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
 
-        # Block 1 — keep low-level features
+        self.in_channels = in_channels
+
+        # ---------------------------
+        # Block 1
+        # ---------------------------
         self.block1 = nn.Sequential(
             nn.Conv2d(in_channels, 32, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
         )
 
-        # Block 2 — depthwise separable conv (MobileNet trick)
-        self.block2 = DepthwiseSeparableConv(32, 64, stride=2)   # reduces H,W by 2
+        # ---------------------------
+        # Depthwise separable blocks
+        # ---------------------------
+        self.block2 = DepthwiseSeparableConv(32, 64, stride=2)
+        self.block3 = DepthwiseSeparableConv(64, 128, stride=2)
+        self.block4 = DepthwiseSeparableConv(128, 256, stride=2)
 
-        # Block 3
-        self.block3 = DepthwiseSeparableConv(64, 128, stride=2)  # reduces H,W by 2
-
-        # Block 4
-        self.block4 = DepthwiseSeparableConv(128, 256, stride=2) # reduces H,W by 2
-
-        # Global pooling → always works regardless of Mel/STFT frame size
+        # Global pooling
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
 
-        # Classifier (small)
+        # ---------------------------
+        # Classifier
+        # ---------------------------
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(256, 128),
             nn.ReLU(inplace=True),
             nn.Dropout(dropout),
-            nn.Linear(128, num_classes)
+            nn.Linear(128, num_classes),
         )
 
         # Weight init
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
-                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
 
-
+    # -------------------------------------------------------
+    # Forward with shape checking and auto-fix
+    # -------------------------------------------------------
     def forward(self, x):
-        x = self.block1(x)  # (B, 32, H, W)
-        x = self.block2(x)  # (B, 64, H/2, W/2)
-        x = self.block3(x)  # (B, 128, H/4, W/4)
-        x = self.block4(x)  # (B, 256, H/8, W/8)
-        x = self.pool(x)    # (B, 256, 1, 1)
+
+        # Ensure input has shape (B, C, H, W)
+        if x.ndim == 3:
+            raise ValueError(
+                f"EEGClassifier_mel_small received raw EEG of shape {x.shape}. "
+                "You must use Mel/STFT spectrograms: (B, C, H, W)."
+            )
+
+        if x.shape[1] != self.in_channels:
+            raise ValueError(
+                f"Expected {self.in_channels} channels but got {x.shape[1]}. "
+                "Make sure Mel/STFT transform is applied BEFORE the model."
+            )
+
+        # Pass through blocks
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.block4(x)
+
+        x = self.pool(x)
         x = self.classifier(x)
         return x

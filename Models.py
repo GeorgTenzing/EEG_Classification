@@ -242,8 +242,8 @@ class EEGClassifier(BaseModel): # working, best 78% val acc, 74% test acc
     
 
 class MNISTNet(BaseModel): # working, not bad 70% val acc
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
         self.drop_p, self.drop_final = 0.15, 0.15
         self.seq = [
             [in_channels, 64, 128, 64, 128, 64],
@@ -319,10 +319,11 @@ class EEGNet(BaseModel): # working
         F2=64,
         kernel_length=256, # 64
         LR=1e-3,
-        WEIGHT_DECAY=1e-5
+        WEIGHT_DECAY=1e-5,
+        class_labels=None
         
     ):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
         
         if F2 is None:
             F2 = F1 * D

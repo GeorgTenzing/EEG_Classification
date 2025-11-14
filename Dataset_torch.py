@@ -64,9 +64,6 @@ class EEGDataset_with_filters(Dataset):
         X, y,
         occipital_slice=None,
         notch_50=False,
-        bandpass=None,      # (low, high)
-        highpass=None,      # cutoff
-        lowpass=None,       # cutoff
         custom_filter_fn=None,   # lambda x: filtered_x
         sample_rate=500
     ):
@@ -75,9 +72,6 @@ class EEGDataset_with_filters(Dataset):
             X : (n_windows, n_channels, n_samples)
             y : labels
             notch_50 : bool → apply 50 Hz notch
-            bandpass : tuple(low, high)
-            highpass : float
-            lowpass : float
             custom_filter_fn : function(x) → x, applied per window
         """
 
@@ -89,16 +83,6 @@ class EEGDataset_with_filters(Dataset):
         # -----------------------------
         def apply_notch(x):
             b, a = iirnotch(50, Q=30, fs=sample_rate)
-            return filtfilt(b, a, x, axis=-1)
-
-        def apply_bandpass(x, low, high):
-            nyq = sample_rate * 0.5
-            b, a = butter(4, [low / nyq, high / nyq], btype='band')
-            return filtfilt(b, a, x, axis=-1)
-
-        def apply_lowpass(x, cutoff):
-            nyq = sample_rate * 0.5
-            b, a = butter(4, cutoff / nyq, btype='low')
             return filtfilt(b, a, x, axis=-1)
 
         def apply_highpass(x, cutoff):
@@ -115,19 +99,6 @@ class EEGDataset_with_filters(Dataset):
 
             if notch_50:
                 window = apply_notch(window)
-
-            if bandpass is not None:
-                lo, hi = bandpass
-                window = apply_bandpass(window, lo, hi)
-
-            if highpass is not None:
-                window = apply_highpass(window, highpass)
-
-            if lowpass is not None:
-                window = apply_lowpass(window, lowpass)
-
-            if custom_filter_fn is not None:
-                window = custom_filter_fn(window)
 
             X[i] = window
 
@@ -254,3 +225,141 @@ class EEGDataset_mel(Dataset):
 
     def __len__(self):
         return len(self.y)
+
+
+
+from scipy.signal import iirnotch, filtfilt, savgol_filter, medfilt, detrend
+
+class EEGDataset_mel_with_filters(Dataset):
+    """
+    EEG dataset with optional filters and Mel/STFT spectrogram transforms.
+    """
+
+    def __init__(
+        self,
+        X, y,
+        occipital_slice=None,
+        filters=["notch", "savgol"],        # ["notch", "savgol", ...]
+        notch_50=False,
+        transform="mel",      # "mel", "stft", or None
+        sample_rate=500,
+        n_mels=64,
+    ):
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=np.int64)
+        self.transform = transform
+        self.sample_rate = sample_rate
+
+        if filters is None:
+            filters = []
+
+        # ------------------------------------------------
+        # GOOD FILTERS
+        # ------------------------------------------------
+        def notch(x):
+            b, a = iirnotch(50, Q=30, fs=sample_rate)
+            return filtfilt(b, a, x, axis=-1)
+
+        def savgol(x):
+            return savgol_filter(x, 31, 3, axis=-1)
+
+        def median(x):
+            return medfilt(x, kernel_size=(1, 5))
+
+        def remove_trend(x):
+            return detrend(x, axis=-1)
+
+        def hann_taper(x):
+            w = np.hanning(x.shape[-1])
+            return x * w
+
+        filter_map = {
+            "notch": notch,
+            "savgol": savgol,
+            "median": median,
+            "detrend": remove_trend,
+            "hann": hann_taper,
+        }
+
+        for f in filters:
+            if f not in filter_map:
+                raise ValueError(f"Invalid filter: {f}")
+
+        # ------------------------------------------------
+        # Apply filters
+        # ------------------------------------------------
+        for i in range(X.shape[0]):
+            window = X[i]
+            for f in filters:
+                window = filter_map[f](window)
+            X[i] = window
+
+        # ------------------------------------------------
+        # Channel selection
+        # ------------------------------------------------
+        if occipital_slice is not None:
+            X = X[:, occipital_slice, :]
+
+        # ------------------------------------------------
+        # Normalization (global)
+        # ------------------------------------------------
+        for i in range(X.shape[0]):
+            m = X[i].mean()
+            s = X[i].std() if X[i].std() != 0 else 1.0
+            X[i] = (X[i] - m) / s
+
+        # ------------------------------------------------
+        # Prepare spectrogram transforms
+        # ------------------------------------------------
+        if transform == "mel":
+            self.mel = torchaudio.transforms.MelSpectrogram(
+                sample_rate=sample_rate,
+                n_fft=256,
+                hop_length=32,
+                n_mels=n_mels,
+                normalized=True,
+            )
+
+        elif transform == "stft":
+            self.n_fft = 256
+            self.hop_length = 32
+
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.long)
+
+    # ------------------------------------------------
+    def __len__(self):
+        return len(self.y)
+
+    # ------------------------------------------------
+    def __getitem__(self, idx):
+        x = self.X[idx]
+
+        # ----------------------------
+        # MEL SPECTROGRAM
+        # ----------------------------
+        if self.transform == "mel":
+            # x: (C, T)
+            out = []
+            for c in range(x.shape[0]):
+                mel = self.mel(x[c].unsqueeze(0)).squeeze(0)
+                out.append(mel)
+            x = torch.stack(out)    # (C=8, mel_bins, frames)
+
+        # ----------------------------
+        # STFT SPECTROGRAM
+        # ----------------------------
+        elif self.transform == "stft":
+            out = []
+            for c in range(x.shape[0]):
+                S = torch.stft(
+                    x[c],
+                    n_fft=self.n_fft,
+                    hop_length=self.hop_length,
+                    window=torch.hann_window(self.n_fft),
+                    return_complex=True,
+                )
+                out.append(torch.abs(S))
+            x = torch.stack(out)    # (C=8, freq_bins, frames)
+
+        return x, self.y[idx]
