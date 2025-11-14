@@ -95,7 +95,8 @@ class EEGDataset_mel(Dataset):
             self.mel = MelSpectrogram(
                 sample_rate=sample_rate,
                 n_mels=n_mels,
-                normalized=True
+                normalized=True,
+                hop_length=32,      # small → more frames
             )
 
     # -------------------------------------------------------
