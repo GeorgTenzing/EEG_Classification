@@ -153,7 +153,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 logger=csv_logger,
                 num_sanity_val_steps=0,
                 log_every_n_steps=0,
-                enable_progress_bar=True,
+                enable_progress_bar=False,
             )
 
             # ---- Train ----
@@ -237,7 +237,7 @@ def test_trained_models(results, test_loader):
     Returns:
         dict: {model_name: {'test_acc': float, 'confusion_matrix': np.ndarray}}
     """
-    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    # logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     trainer = Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu")
 
     results_out = {}

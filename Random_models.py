@@ -9,10 +9,39 @@ import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 from torchmetrics.classification import Accuracy, ConfusionMatrix
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+import torch.nn.functional as F
+import torchaudio
+
+from Models import BaseModel
+
+
+class TCNModel_withBase(BaseModel): # working, 
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+        layers = []
+        in_ch, out_ch = in_channels, 32
+        for d in [1, 2, 4, 8]:
+            layers += [nn.Conv1d(in_ch, out_ch, 3, padding=d, dilation=d),
+                       nn.BatchNorm1d(out_ch), nn.ReLU()]
+            in_ch = out_ch
+        self.tcn = nn.Sequential(*layers)
+        self.head = nn.Linear(out_ch, num_classes)
+    def forward(self, x):
+        x = self.tcn(x)           # (B, out_ch, T)
+        x = x.mean(-1)            # global average pooling
+        return self.head(x)
+
+
+
+
+
+
+
+
 
 class BiLSTMModel_withBase(BaseModel): # working, but ass 
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, hidden_size=64, num_layers=2, dropout=0.25):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, hidden_size=64, num_layers=2, dropout=0.25, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
         self.hidden_size = hidden_size
 
         # Temporal feature extractor (optional 1D conv front-end)
@@ -47,8 +76,8 @@ class BiLSTMModel_withBase(BaseModel): # working, but ass
 
     
 class ShallowConvNet_withBase(BaseModel): # working, ass
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, samples=500):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, samples=500, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
 
         self.net = nn.Sequential(
             nn.Conv2d(1, 40, (1, 25), bias=False),       # temporal filters
@@ -77,27 +106,11 @@ class ShallowConvNet_withBase(BaseModel): # working, ass
 
 
 
-class TCNModel_withBase(BaseModel): # working, not bad 67% val acc
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
-        layers = []
-        in_ch, out_ch = chans, 32
-        for d in [1, 2, 4, 8]:
-            layers += [nn.Conv1d(in_ch, out_ch, 3, padding=d, dilation=d),
-                       nn.BatchNorm1d(out_ch), nn.ReLU()]
-            in_ch = out_ch
-        self.tcn = nn.Sequential(*layers)
-        self.head = nn.Linear(out_ch, num_classes)
-    def forward(self, x):
-        x = self.tcn(x)           # (B, out_ch, T)
-        x = x.mean(-1)            # global average pooling
-        return self.head(x)
-
 
 
 class EEGTransformer_withBase(BaseModel):  # working, ass
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, samples=500, embed_dim=64, nhead=4):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, samples=500, embed_dim=64, nhead=4, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
         self.conv = nn.Conv1d(chans, embed_dim, 8, 4, 2)
         encoder_layer = nn.TransformerEncoderLayer(embed_dim, nhead, dim_feedforward=128, batch_first=True)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=2)
@@ -106,21 +119,6 @@ class EEGTransformer_withBase(BaseModel):  # working, ass
         x = self.conv(x).permute(0, 2, 1)   # (B, T, embed)
         x = self.transformer(x)
         return self.fc(x[:, -1, :])
-
-
-
-class GraphEEGNet_withBase(BaseModel):
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, hidden=64):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
-        from torch_geometric.nn import GCNConv
-        self.conv1 = GCNConv(chans, hidden)
-        self.conv2 = GCNConv(hidden, hidden)
-        self.fc = nn.Linear(hidden, num_classes)
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.relu(self.conv2(x, edge_index))
-        return self.fc(x.mean(dim=0))
 
 
 
@@ -163,8 +161,8 @@ class SpectroCNN_withBase(BaseModel):
 
 
 class TCNAttentionModel_withBase(BaseModel):
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, hidden=64):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, hidden=64, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
         self.tcn = nn.Sequential(
             nn.Conv1d(chans, hidden, 3, padding=1, dilation=1),
             nn.ReLU(),
@@ -184,25 +182,9 @@ class TCNAttentionModel_withBase(BaseModel):
         return self.fc(x)
 
 
-class GraphSpectralEEGNet_withBase(BaseModel):
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, hidden=64):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
-        self.conv1 = torch_geometric.nn.GCNConv(chans, hidden)
-        self.conv2 = torch_geometric.nn.GCNConv(hidden, hidden)
-        self.fc = nn.Linear(hidden, num_classes)
-
-    def forward(self, data):
-        # data.x: node features (channels × features)
-        # data.edge_index: adjacency list of electrodes
-        x = F.relu(self.conv1(data.x, data.edge_index))
-        x = F.relu(self.conv2(x, data.edge_index))
-        x = x.mean(dim=0)
-        return self.fc(x)
-
-
 class EEGTransformerLite_withBase(BaseModel):
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, samples=500, embed_dim=64, nhead=4):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY)
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, chans=8, samples=500, embed_dim=64, nhead=4, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
         self.proj = nn.Conv1d(chans, embed_dim, 8, 4, 2)
         encoder_layer = nn.TransformerEncoderLayer(embed_dim, nhead, 128, batch_first=True)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=2)
@@ -274,16 +256,18 @@ sol_6307  = [
     ("conv", 8, 16, "save5"),
     ("pool",),
     ("conv", 16, 32, "save6"),
-    ("pool",),
-    ("conv", 32, 64, "save7"), 
+    # ("pool",),
+    # ("conv", 32, 64, "save7"), 
     
     # Bottleneck
     ("pool",),
-    ("bottleneck", 64, 128),
+    # ("bottleneck", 64, 128),
+    ("bottleneck", 43, 64),
+    
       ("drop", 0.5),
 
     # Decoder
-    ("deconv", 128, 64, "save7"),
+    # ("deconv", 128, 64, "save7"),
     ("deconv", 64, 32, "save6"),
     ("deconv", 32, 16, "save5"),
     ("deconv", 16, 8, "save4"),
@@ -297,22 +281,23 @@ sol_6307  = [
 ]
 
 # --- Main Model ---
-class FlexibleUNet1D(pl.LightningModule):
+class FlexibleUNet1D(BaseModel):
     def __init__(
         self,
         user_spec = sol_6307,
         in_channels=8,
         num_classes=6,
         base=16,
-        LR_ENCODER=1e-3,
+        LR=1e-3,
         WEIGHT_DECAY=1e-5,
+        class_labels=None,
     ):
-        super().__init__()
-        self.save_hyperparameters()
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+        # self.save_hyperparameters()
         self.base = base
         self.in_channels = in_channels
         self.num_classes = num_classes
-        self.LR_ENCODER = LR_ENCODER
+        self.LR = LR
         self.WEIGHT_DECAY = WEIGHT_DECAY
 
         # --- Translate user-friendly spec ---
@@ -367,76 +352,6 @@ class FlexibleUNet1D(pl.LightningModule):
         x = self.classifier(x)    # (B, num_classes)
         return x
     
-    # ------------------------------------------------------------
-    # Training step
-    # ------------------------------------------------------------
-    def training_step(self, batch, batch_idx):
-        X, y = batch
-        preds = self(X)
-        # Define class weights (you can tune the first one for label 0)
-        weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
-
-        # Use weighted cross-entropy
-        criterion = nn.CrossEntropyLoss(weight=weights)
-        loss = criterion(preds, y)
-        
-        # loss = nn.functional.cross_entropy(preds, y)
-        
-        acc = self.train_acc(preds, y)
-        self.log("train_loss", loss, prog_bar=True, on_epoch=True)
-        self.log("train_acc", acc, prog_bar=True, on_epoch=True)
-        return loss
-
-    # ------------------------------------------------------------
-    # Validation step
-    # ------------------------------------------------------------
-    def validation_step(self, batch, batch_idx):
-        X, y = batch
-        preds = self(X)
-        loss = nn.functional.cross_entropy(preds, y)
-        acc = self.val_acc(preds, y)
-        self.log("val_loss", loss, prog_bar=True, on_epoch=True)
-        self.log("val_acc", acc, prog_bar=True, on_epoch=True)
-
-    # ------------------------------------------------------------
-    # Test step
-    # ------------------------------------------------------------
-    def test_step(self, batch, batch_idx):
-        X, y = batch
-        preds = self(X)
-        loss = nn.functional.cross_entropy(preds, y)
-        acc = self.test_acc(preds, y)
-        
-        # Store confusion matrix for later
-        self.test_cm.update(preds, y)
-        
-        self.log("test_loss", loss)
-        self.log("test_acc", acc)
-
-    # ------------------------------------------------------------
-    # Optimizer
-    # ------------------------------------------------------------
-    def configure_optimizers(self):
-        optimizer = optim.AdamW(
-            # Two-param group optimizer (encoder vs decoder/head)
-            # [{"params": self.encoder.parameters(), "lr": self.LR_ENCODER},
-            # {"params": list(self.convs.parameters()) + list(self.decoder.parameters()), "lr": self.LR_HEAD},]
-        self.parameters(), lr=self.LR_ENCODER, weight_decay=self.WEIGHT_DECAY)
-        return optimizer
-
-    def on_test_epoch_end(self):
-        # Compute confusion matrix at epoch end
-        cm = self.test_cm.compute().cpu().numpy()
-        print("\nConfusion Matrix:\n", cm)
-
-        # Compute per-class accuracies manually
-        class_acc = cm.diagonal() / cm.sum(axis=1)
-        for i, acc in enumerate(class_acc):
-            self.log(f"class_{i}_acc", acc)
-            # print(f"Accuracy for class {i}: {acc:.3f}")
-
-        # Reset confusion matrix
-        self.test_cm.reset()
         
 
 def translate_spec(user_spec: list) -> list:

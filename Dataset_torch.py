@@ -1,9 +1,10 @@
+from scipy.fftpack import fft
 import torch
 import numpy as np
 from torch.utils.data import Dataset
 import torchaudio
 from torchaudio.transforms import MelSpectrogram
-
+from scipy.signal import butter, filtfilt, iirnotch
 
 
 # ============================================================
@@ -51,10 +52,6 @@ class EEGDataset(Dataset):
         return self.X[idx], self.y[idx]
     
 
-import torch
-import numpy as np
-from torch.utils.data import Dataset
-from scipy.signal import butter, filtfilt, iirnotch
 
 
 class EEGDataset_with_filters(Dataset):
@@ -64,7 +61,6 @@ class EEGDataset_with_filters(Dataset):
         X, y,
         occipital_slice=None,
         notch_50=False,
-        custom_filter_fn=None,   # lambda x: filtered_x
         sample_rate=500
     ):
         """
@@ -72,7 +68,6 @@ class EEGDataset_with_filters(Dataset):
             X : (n_windows, n_channels, n_samples)
             y : labels
             notch_50 : bool → apply 50 Hz notch
-            custom_filter_fn : function(x) → x, applied per window
         """
 
         X = np.asarray(X, dtype=np.float32)
@@ -84,12 +79,6 @@ class EEGDataset_with_filters(Dataset):
         def apply_notch(x):
             b, a = iirnotch(50, Q=30, fs=sample_rate)
             return filtfilt(b, a, x, axis=-1)
-
-        def apply_highpass(x, cutoff):
-            nyq = sample_rate * 0.5
-            b, a = butter(4, cutoff / nyq, btype='high')
-            return filtfilt(b, a, x, axis=-1)
-
         # -----------------------------
         # Apply filters to all windows
         # -----------------------------
@@ -128,6 +117,130 @@ class EEGDataset_with_filters(Dataset):
 
 
 
+class EEGDataset_with_filters_for_fft(Dataset):
+
+    def __init__(
+        self,
+        X, y,
+        occipital_slice=None,
+        notch_50=False,
+        sample_rate=500,
+        use_fft=True,
+        n_fft=256
+    ):
+        """
+        Args:
+            X : (n_windows, n_channels, n_samples)
+            y : labels
+            use_fft : if True → apply FFT and return (C, freq_bins)
+        """
+
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=np.int64)
+
+        self.use_fft = use_fft
+        self.sample_rate = sample_rate
+        self.n_fft = n_fft
+
+        # -----------------------------
+        # Filter helpers
+        # -----------------------------
+        def apply_notch(x):
+            b, a = iirnotch(50, Q=30, fs=sample_rate)
+            return filtfilt(b, a, x, axis=-1)
+
+        # -----------------------------
+        # Apply filters to all windows
+        # -----------------------------
+        for i in range(X.shape[0]):
+            window = X[i]  # shape (C, T)
+
+            if notch_50:
+                window = apply_notch(window)
+
+            X[i] = window
+
+        # ---------------------------
+        # Normalize per-window
+        # ---------------------------
+        for i in range(X.shape[0]):
+            mean = X[i].mean()
+            std = X[i].std() if X[i].std() != 0 else 1.0
+            X[i] = (X[i] - mean) / std
+            
+        # ---------------------------
+        # Normalize per-channel per-window
+        # ---------------------------
+        # for i in range(X.shape[0]):
+        #     for c in range(X.shape[1]):
+        #         mean = X[i, c].mean()
+        #         std = X[i, c].std() if X[i, c].std() != 0 else 1.0
+        #         X[i, c] = (X[i, c] - mean) / std
+
+
+        # Optional channel selection
+        if occipital_slice is not None:
+            X = X[:, occipital_slice, :]
+
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.long)
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        x = self.X[idx]  # (C, T)
+
+        # -----------------------------------
+        # FFT transform (1D model compatible)
+        # -----------------------------------
+        if self.use_fft:
+            # Compute real FFT magnitude: (C, freq_bins)  # 0.764 val acc
+            fft = torch.fft.rfft(x, n=self.n_fft, dim=-1)
+            x = torch.abs(fft)  # keep magnitude only
+            
+            # fft = torch.fft.rfft(x, n=self.n_fft, dim=-1)  # 0.741 val acc, 0.743 test acc
+            # real = fft.real
+            # imag = fft.imag
+            # x = torch.cat([real, imag], dim=-1)
+            
+            # fft = torch.fft.rfft(x, n=self.n_fft, dim=-1) # 0.672 val acc
+            # mag = torch.abs(fft)
+            # phase = torch.angle(fft)
+            # x = torch.cat([mag, phase], dim=-1)
+            
+            # fft = torch.abs(torch.fft.rfft(x, n=self.n_fft, dim=-1)) # 0.701 val acc
+            # x = torch.log1p(fft)
+            
+            # fft = torch.abs(torch.fft.rfft(x, n=self.n_fft, dim=-1)) # 0. val acc
+            # energy = fft.sum(dim=-1, keepdim=True) + 1e-6
+            # x = fft / energy
+            
+            # target_freqs = torch.tensor([10.5, 12, 15.2, 18.1]) # 0. val acc
+            # harmonics = target_freqs * 2
+            # freqs = torch.cat([target_freqs, harmonics])
+            # bins = (freqs / self.sample_rate * self.n_fft).long()
+            # fft = torch.abs(torch.fft.rfft(x, n=self.n_fft, dim=-1))
+            # x = fft[:, bins]    # shape: (C, 12)
+            
+            # fft = torch.abs(torch.fft.rfft(x, n=self.n_fft, dim=-1)) # 0. val acc
+            # x = fft[:, 1:] - fft[:, :-1]
+        return x, self.y[idx]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 class EEGDataset_mel(Dataset):
     def __init__(
@@ -146,6 +259,9 @@ class EEGDataset_mel(Dataset):
         y = np.asarray(y, dtype=np.int64)
 
         n_windows = X.shape[0]
+        def notch(x):
+            b, a = iirnotch(50, Q=30, fs=sample_rate)
+            return filtfilt(b, a, x, axis=-1)
 
         # Normalize each window
         for i in range(n_windows):
@@ -228,6 +344,9 @@ class EEGDataset_mel(Dataset):
 
 
 
+
+
+
 from scipy.signal import iirnotch, filtfilt, savgol_filter, medfilt, detrend
 
 class EEGDataset_mel_with_filters(Dataset):
@@ -239,7 +358,7 @@ class EEGDataset_mel_with_filters(Dataset):
         self,
         X, y,
         occipital_slice=None,
-        filters=["notch", "savgol"],        # ["notch", "savgol", ...]
+        filters=["notch"],        # ["notch", "savgol", ...]
         notch_50=False,
         transform="mel",      # "mel", "stft", or None
         sample_rate=500,
@@ -260,25 +379,25 @@ class EEGDataset_mel_with_filters(Dataset):
             b, a = iirnotch(50, Q=30, fs=sample_rate)
             return filtfilt(b, a, x, axis=-1)
 
-        def savgol(x):
-            return savgol_filter(x, 31, 3, axis=-1)
+        # def savgol(x):
+        #     return savgol_filter(x, 31, 3, axis=-1)
 
-        def median(x):
-            return medfilt(x, kernel_size=(1, 5))
+        # def median(x):
+        #     return medfilt(x, kernel_size=(1, 5))
 
-        def remove_trend(x):
-            return detrend(x, axis=-1)
+        # def remove_trend(x):
+        #     return detrend(x, axis=-1)
 
-        def hann_taper(x):
-            w = np.hanning(x.shape[-1])
-            return x * w
+        # def hann_taper(x):
+        #     w = np.hanning(x.shape[-1])
+        #     return x * w
 
         filter_map = {
             "notch": notch,
-            "savgol": savgol,
-            "median": median,
-            "detrend": remove_trend,
-            "hann": hann_taper,
+            # "savgol": savgol,
+            # "median": median,
+            # "detrend": remove_trend,
+            # "hann": hann_taper,
         }
 
         for f in filters:
