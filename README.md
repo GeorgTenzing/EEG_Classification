@@ -53,7 +53,6 @@ EEG_Classification/
 
 ## Dependencies
 
-
 Install required packages:
 ```bash
 pip install torch torchaudio pytorch-lightning numpy scipy matplotlib
