@@ -126,27 +126,44 @@ def run_multiple_models(models=None, shared_parameters=None):
         print(f"\nProcessing  {model_name}...\n")
 
         try: 
+            trainer = Trainer(
+                max_time=params["MAX_TIME"],
+                max_epochs=params["EPOCHS"],
+                accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                precision=16,
+                gradient_clip_val=params["MAX_GRAD_NORM"],
+                accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
+
+                enable_model_summary=params["SUMMARY"],
+                enable_checkpointing=True,
+                benchmark=params["BENCHMARK"],
+                fast_dev_run=False,
+                
+                num_sanity_val_steps=0,
+                log_every_n_steps=0,
+                enable_progress_bar=False,
+            )
             # =====================================================
             # OPTION 1: LOAD CHECKPOINT (skip training)
             # =====================================================
             if params["LOAD_CHECKPOINT"] is not None and params["skip_training"] == True:
-                trainer = Trainer(
-                    max_time=params["MAX_TIME"],
-                    max_epochs=params["EPOCHS"],
-                    accelerator="gpu" if torch.cuda.is_available() else "cpu",
-                    precision=16,
-                    gradient_clip_val=params["MAX_GRAD_NORM"],
-                    accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
+                # trainer = Trainer(
+                #     max_time=params["MAX_TIME"],
+                #     max_epochs=params["EPOCHS"],
+                #     accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                #     precision=16,
+                #     gradient_clip_val=params["MAX_GRAD_NORM"],
+                #     accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
 
-                    enable_model_summary=params["SUMMARY"],
-                    enable_checkpointing=True,
-                    benchmark=params["BENCHMARK"],
-                    fast_dev_run=False,
+                #     enable_model_summary=params["SUMMARY"],
+                #     enable_checkpointing=True,
+                #     benchmark=params["BENCHMARK"],
+                #     fast_dev_run=False,
                     
-                    num_sanity_val_steps=0,
-                    log_every_n_steps=0,
-                    enable_progress_bar=False,
-                )
+                #     num_sanity_val_steps=0,
+                #     log_every_n_steps=0,
+                #     enable_progress_bar=False,
+                # )
                                 
                 ckpt_path = params["LOAD_CHECKPOINT"]
                 
@@ -173,30 +190,16 @@ def run_multiple_models(models=None, shared_parameters=None):
             else:
                 print(f"Training {model_name}...\n")
                 
-                # # ---- Load from checkpoint and continue training ----
-                # if params["LOAD_CHECKPOINT"] is not None:
-                #     print(f"Resuming training from checkpoint: {params['LOAD_CHECKPOINT']}")
-                #     model = ModelClass.load_from_checkpoint(
-                #         params["LOAD_CHECKPOINT"],
-                #         **params["MODEL_KWARGS"]
-                #     ).to(device)
-                # else:
-                #     # ---- Create model ----
-                #     model = ModelClass(**params["MODEL_KWARGS"]).to(device)
-                    
                 # ---- Load from checkpoint and continue training ----
                 if params["LOAD_CHECKPOINT"] is not None:
-                    model = ModelClass(**params["MODEL_KWARGS"])  # Lightning will load params into it
-                    print(f"Resuming training from checkpoint: {params["LOAD_CHECKPOINT"]}")
-                    ckpt_path = params["LOAD_CHECKPOINT"]
+                    model = ModelClass.load_from_checkpoint(
+                        params["LOAD_CHECKPOINT"], 
+                        **params["MODEL_KWARGS"]
+                    ).to(device)  # Lightning will load params into it
                 else:
                     # ---- Create model ----
                     model = ModelClass(**params["MODEL_KWARGS"])
-                    ckpt_path = None
-
-
-
-
+                
                 # ---- Logger and checkpoint (unique per model) ----
                 csv_logger = CSVLogger("logs", name=model_name)
                 checkpoint = ModelCheckpoint(
@@ -206,29 +209,28 @@ def run_multiple_models(models=None, shared_parameters=None):
                 )
 
                 # ---- Fresh trainer for each model ----
-                trainer = Trainer(
-                    max_time=params["MAX_TIME"],
-                    max_epochs=params["EPOCHS"],
-                    accelerator="gpu" if torch.cuda.is_available() else "cpu",
-                    precision=16,
-                    gradient_clip_val=params["MAX_GRAD_NORM"],
-                    accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
+                # trainer = Trainer(
+                #     max_time=params["MAX_TIME"],
+                #     max_epochs=params["EPOCHS"],
+                #     accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                #     precision=16,
+                #     gradient_clip_val=params["MAX_GRAD_NORM"],
+                #     accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
 
-                    enable_model_summary=params["SUMMARY"],
-                    enable_checkpointing=True,
-                    callbacks=[checkpoint],
-                    benchmark=params["BENCHMARK"],
-                    fast_dev_run=False,
+                #     enable_model_summary=params["SUMMARY"],
+                #     enable_checkpointing=True,
+                #     callbacks=[checkpoint],
+                #     benchmark=params["BENCHMARK"],
+                #     fast_dev_run=False,
                     
-                    logger=csv_logger,
-                    num_sanity_val_steps=0,
-                    log_every_n_steps=0,
-                    enable_progress_bar=False,
-                )
+                #     logger=csv_logger,
+                #     num_sanity_val_steps=0,
+                #     log_every_n_steps=0,
+                #     enable_progress_bar=False,
+                # )
 
                 # ---- Train ----
-                # trainer.fit(model, train_loader, val_loader)
-                trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
+                trainer.fit(model, train_loader, val_loader)
 
                 # ---- Load best model ----
                 best_path = trainer.checkpoint_callback.best_model_path
