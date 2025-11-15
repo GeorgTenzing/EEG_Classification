@@ -147,23 +147,6 @@ def run_multiple_models(models=None, shared_parameters=None):
             # OPTION 1: LOAD CHECKPOINT (skip training)
             # =====================================================
             if params["LOAD_CHECKPOINT"] is not None and params["skip_training"] == True:
-                # trainer = Trainer(
-                #     max_time=params["MAX_TIME"],
-                #     max_epochs=params["EPOCHS"],
-                #     accelerator="gpu" if torch.cuda.is_available() else "cpu",
-                #     precision=16,
-                #     gradient_clip_val=params["MAX_GRAD_NORM"],
-                #     accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
-
-                #     enable_model_summary=params["SUMMARY"],
-                #     enable_checkpointing=True,
-                #     benchmark=params["BENCHMARK"],
-                #     fast_dev_run=False,
-                    
-                #     num_sanity_val_steps=0,
-                #     log_every_n_steps=0,
-                #     enable_progress_bar=False,
-                # )
                                 
                 ckpt_path = params["LOAD_CHECKPOINT"]
                 
@@ -208,27 +191,6 @@ def run_multiple_models(models=None, shared_parameters=None):
                     auto_insert_metric_name=False,
                 )
 
-                # ---- Fresh trainer for each model ----
-                # trainer = Trainer(
-                #     max_time=params["MAX_TIME"],
-                #     max_epochs=params["EPOCHS"],
-                #     accelerator="gpu" if torch.cuda.is_available() else "cpu",
-                #     precision=16,
-                #     gradient_clip_val=params["MAX_GRAD_NORM"],
-                #     accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
-
-                #     enable_model_summary=params["SUMMARY"],
-                #     enable_checkpointing=True,
-                #     callbacks=[checkpoint],
-                #     benchmark=params["BENCHMARK"],
-                #     fast_dev_run=False,
-                    
-                #     logger=csv_logger,
-                #     num_sanity_val_steps=0,
-                #     log_every_n_steps=0,
-                #     enable_progress_bar=False,
-                # )
-
                 # ---- Train ----
                 trainer.fit(model, train_loader, val_loader)
 
@@ -244,7 +206,9 @@ def run_multiple_models(models=None, shared_parameters=None):
                     "best_model": best_model,
                     "metrics_path": metrics_path
                 }
-            
+            # =====================================================
+            # OPTION 4: Testing phase (if enabled)
+            # =====================================================
             if params["testing"] == True:
                 best_model = best_model.to(device)
                 best_model.eval()
