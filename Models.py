@@ -24,6 +24,7 @@ class BaseModel(pl.LightningModule):
         self.weight_decay = WEIGHT_DECAY
         self.criterion = nn.CrossEntropyLoss()
         self.class_labels = class_labels
+        self.label_0_weight = 1.0  # Weight for class 0 in loss function
         # self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
         self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
@@ -42,14 +43,14 @@ class BaseModel(pl.LightningModule):
         X, y = batch
         preds = self(X)
         
-        # # Define class weights (you can tune the first one for label 0)
-        # # weights = torch.tensor([0.5, 1, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
-        # weights = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
-        # weights[0] = 0.5
-        # # Use weighted cross-entropy
-        # criterion = nn.CrossEntropyLoss(weight=weights)
+        # Define class weights (you can tune the first one for label 0)
+        # weights = torch.tensor([0.5, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
+        weights = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
+        weight = self.label_0_weight
+        # Use weighted cross-entropy
+        criterion = nn.CrossEntropyLoss(weight=weights)
         
-        criterion = nn.CrossEntropyLoss()
+        # criterion = nn.CrossEntropyLoss()
         loss = criterion(preds, y)
         
         # loss = nn.functional.cross_entropy(preds, y)

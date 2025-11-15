@@ -251,6 +251,10 @@ def load_and_concat_ssvep_datasets(
         X_bal, y_bal = downsample_label(X_all, y_all, target_label=target_label, keep_ratio=keep_ratio)
     else:
         X_bal, y_bal = X_all, y_all
+    print("Before downsample:", np.unique(y_all, return_counts=True))
+    print(X_all.shape, y_all.shape)
+    print("After downsample:",  np.unique(y_bal, return_counts=True))
+    print(X_bal.shape, y_bal.shape)
 
     return X_all, y_all, X_bal, y_bal, eeg_all, trigger_all, 
 
@@ -280,11 +284,6 @@ def downsample_label(X, y, target_label=0, keep_ratio=0.2, seed=42):
     
     X_bal = X[keep_idx]
     y_bal = y[keep_idx]
-    
-    print("Before:", np.unique(y, return_counts=True))
-    print(X.shape, y.shape)
-    print("After:",  np.unique(y_bal, return_counts=True))
-    print(X_bal.shape, y_bal.shape)
 
     return X_bal, y_bal
 

@@ -19,3 +19,5 @@ TODOs:
 
 after training, do testing, print class accuracies and confusion matrix and plot val results and save all in the folder with the metrics.csv, 
 check on new data 
+
+only take model prediction for drone control if probability is above 50 
