@@ -134,9 +134,10 @@ def load_and_concat_ssvep_datasets(
     overlap=0.5,
     verbose=True,
     filter=False,
+    remove_labels=None,
+    relabel_map = {0:0, 2:1, 3:2, 4:3, 5:4},
     target_label=None,
     keep_ratio=0.2,
-    remove_labels=None,
 ):
     """
     Load and combine multiple SSVEP EEG datasets from CSV files,
@@ -186,7 +187,6 @@ def load_and_concat_ssvep_datasets(
             path, dslice, relabel_map = entry
         elif len(entry) == 2:
             path, dslice = entry
-            relabel_map = None
         else:
             raise ValueError(
                 "Each dataset entry must be (csv_path, data_slice[, relabel_map])"
