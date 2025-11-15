@@ -53,8 +53,10 @@ EEG_Classification/
 
 ## Dependencies
 
+```bash
 Install required packages:
 pip install torch torchaudio pytorch-lightning numpy scipy matplotlib
+```
 
 ## Use Case for BCI & Drone Control
 
