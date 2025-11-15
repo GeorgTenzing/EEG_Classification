@@ -13,13 +13,11 @@ The goal is to provide efficient models suitable both for offline experimentatio
 
 ## Performance
 
-```bash
 | Scenario                                           | Test Accuracy |
 |----------------------------------------------------|--------------|
 | 10 SSVEP frequencies                                | 0.801        |
 | 4 SSVEP frequencies + “no-signal” class             | 0.817        |
 | 4 SSVEP frequencies only                            | 0.970        |
-```
 
 ## Repository Structure  
 
