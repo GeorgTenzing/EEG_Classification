@@ -26,6 +26,12 @@ class TCNModel_withBase(BaseModel):
             in_ch = out_ch
         self.tcn = nn.Sequential(*layers)
         self.head = nn.Linear(out_ch, num_classes)
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv1d):
+        #         nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+        #     elif isinstance(m, nn.Linear):
+        #         nn.init.normal_(m.weight, 0, 0.01)
+        #         nn.init.zeros_(m.bias)
     def forward(self, x):
         x = self.tcn(x)           # (B, out_ch, T)
         x = x.mean(-1)            # global average pooling
