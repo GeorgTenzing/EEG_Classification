@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from copy import deepcopy
 
 from Dataset_torch import EEGDataset, EEGDataset_mel, EEGDataset_with_filters
-from Models import EEGClassifier 
+from Models_1D import EEGClassifier 
 from Utils import plot_training_metrics
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
