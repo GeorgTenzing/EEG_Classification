@@ -22,7 +22,8 @@ class TCNModel_withBase(BaseModel): # working,
         in_ch, out_ch = in_channels, 32
         for d in [1, 2, 4, 8]:
             layers += [nn.Conv1d(in_ch, out_ch, 3, padding=d, dilation=d),
-                       nn.BatchNorm1d(out_ch), nn.ReLU()]
+                       nn.BatchNorm1d(out_ch), 
+                       nn.ReLU()]
             in_ch = out_ch
         self.tcn = nn.Sequential(*layers)
         self.head = nn.Linear(out_ch, num_classes)
@@ -30,6 +31,145 @@ class TCNModel_withBase(BaseModel): # working,
         x = self.tcn(x)           # (B, out_ch, T)
         x = x.mean(-1)            # global average pooling
         return self.head(x)
+
+
+
+
+
+class ResidualTCNBlock(nn.Module):
+    def __init__(self, in_ch, out_ch, dilation):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv1d(in_ch, out_ch, kernel_size=3, padding=dilation, dilation=dilation),
+            nn.BatchNorm1d(out_ch),
+            nn.ReLU(),
+            nn.Dropout(0.1)
+        )
+        self.proj = nn.Conv1d(in_ch, out_ch, kernel_size=1) if in_ch != out_ch else nn.Identity()
+
+    def forward(self, x):
+        return self.conv(x) + self.proj(x)
+
+class DepthwiseSeparableConv1D(nn.Module):
+    def __init__(self, in_ch, out_ch, dilation):
+        super().__init__()
+        self.depth = nn.Conv1d(in_ch, in_ch, kernel_size=3,
+                               padding=dilation, dilation=dilation,
+                               groups=in_ch, bias=False)
+        self.point = nn.Conv1d(in_ch, out_ch, kernel_size=1, bias=False)
+        self.bn = nn.BatchNorm1d(out_ch)
+        self.act = nn.ReLU()
+
+    def forward(self, x):
+        x = self.depth(x)
+        x = self.point(x)
+        x = self.bn(x)
+        return self.act(x)
+
+class SEBlock1D(nn.Module):
+    def __init__(self, channels, reduction=8):
+        super().__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(channels, channels // reduction),
+            nn.ReLU(),
+            nn.Linear(channels // reduction, channels),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        # x: (B, C, T)
+        w = x.mean(-1)              # (B, C)
+        w = self.fc(w)              # (B, C)
+        w = w.unsqueeze(-1)         # (B, C, 1)
+        return x * w
+
+
+
+class TCNModel_withBase_v2_ResidualTCNBlock(BaseModel):  
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+        layers = []
+        in_ch, out_ch = in_channels, 32
+        for d in [1, 2, 4, 8]:
+            layers.append(ResidualTCNBlock(in_ch, out_ch, d))
+            in_ch = out_ch
+        self.tcn = nn.Sequential(*layers)
+        self.head = nn.Linear(out_ch, num_classes)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+                
+    def forward(self, x):
+        x = self.tcn(x)           # (B, out_ch, T)
+        x = x.mean(-1)            # global average pooling
+        return self.head(x)
+
+
+class TCNModel_withBase_v3_DepthwiseSeparableConv1D(BaseModel):  
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+        layers = []
+        in_ch, out_ch = in_channels, 32
+        for d in [1, 2, 4, 8]:
+            layers.append(DepthwiseSeparableConv1D(in_ch, out_ch, d))
+            in_ch = out_ch
+        self.tcn = nn.Sequential(*layers)
+        self.head = nn.Linear(out_ch, num_classes)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+                
+    def forward(self, x):
+        x = self.tcn(x)           # (B, out_ch, T)
+        x = x.mean(-1)            # global average pooling
+        return self.head(x)
+
+
+
+class TCNModel_withBase_v4_DepthwiseSeparableConv1D_SEBlock1D(BaseModel):  
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+        layers = []
+        in_ch, out_ch = in_channels, 32
+        for d in [1, 2, 4, 8]:
+            layers.append(nn.Sequential(
+                DepthwiseSeparableConv1D(in_ch, out_ch, d),
+                SEBlock1D(32)
+            ))
+            in_ch = out_ch
+        self.tcn = nn.Sequential(*layers)
+        self.head = nn.Linear(out_ch, num_classes)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+                
+    def forward(self, x):
+        x = self.tcn(x)           # (B, out_ch, T)
+        x = x.mean(-1)            # global average pooling
+        return self.head(x)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
