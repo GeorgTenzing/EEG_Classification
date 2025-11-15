@@ -13,14 +13,17 @@ The goal is to provide efficient models suitable both for offline experimentatio
 
 ## Performance
 
+```bash
 | Scenario                                           | Test Accuracy |
 |----------------------------------------------------|--------------|
 | 10 SSVEP frequencies                                | 0.801        |
 | 4 SSVEP frequencies + “no-signal” class             | 0.817        |
 | 4 SSVEP frequencies only                            | 0.970        |
+```
 
 ## Repository Structure  
 
+```bash
 EEG_Classification/
 │
 ├── Result_presentation.ipynb # to present results and performance of differnet ML models
@@ -48,7 +51,7 @@ EEG_Classification/
 ├── logs/ # Trainer output: versioned logs and checkpoint folders
 │
 └── README.md # This file
-
+```
 
 ## Dependencies
 
