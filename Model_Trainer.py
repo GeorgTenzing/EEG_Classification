@@ -187,7 +187,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 # ---- Load from checkpoint and continue training ----
                 if params["LOAD_CHECKPOINT"] is not None:
                     model = ModelClass(**params["MODEL_KWARGS"])  # Lightning will load params into it
-                    print(f"Resuming training from checkpoint: {params['LOAD_CHECKPOINT']}")
+                    print(f"Resuming training from checkpoint: {params["LOAD_CHECKPOINT"]}")
                     ckpt_path = params["LOAD_CHECKPOINT"]
                 else:
                     # ---- Create model ----
