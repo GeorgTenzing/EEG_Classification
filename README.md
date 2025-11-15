@@ -30,8 +30,10 @@ TCNModel_withBase
 | 2 | test_acc  | MulticlassAccuracy        | 0      | train      | 
 | 3 | test_cm   | MulticlassConfusionMatrix | 0      | train      | 
 | 4 | tcn       | Sequential                | 10.4 K | train      | 
-| 5 | head      | Linear                    | 330    | train      |  
+| 5 | head      | Linear                    | 330    | train      | 
+ 
 
+| Number    | Object                                              |
 | ----------|-----------------------------------------------------| 
 | 10.7 K    | Trainable params                                    | 
 | 0         | Non-trainable params                                | 
