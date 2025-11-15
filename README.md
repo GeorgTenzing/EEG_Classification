@@ -23,21 +23,21 @@ The goal is to provide efficient models suitable both for offline experimentatio
 ## Best Model 
 TCNModel_withBase
 
-  | Name      | Type                      | Params | Mode 
-----------------------------------------------------------------
-0 | train_acc | MulticlassAccuracy        | 0      | train
-1 | val_acc   | MulticlassAccuracy        | 0      | train
-2 | test_acc  | MulticlassAccuracy        | 0      | train
-3 | test_cm   | MulticlassConfusionMatrix | 0      | train
-4 | tcn       | Sequential                | 10.4 K | train
-5 | head      | Linear                    | 330    | train
-----------------------------------------------------------------
-10.7 K    Trainable params
-0         Non-trainable params
-10.7 K    Total params
-0.043     Total estimated model params size (MB)
-18        Modules in train mode
-0         Modules in eval mode
+|   | Name      | Type                      | Params | Mode       | 
+| ----------------------------------------------------------------| 
+| 0 | train_acc | MulticlassAccuracy        | 0      | train      | 
+| 1 | val_acc   | MulticlassAccuracy        | 0      | train      | 
+| 2 | test_acc  | MulticlassAccuracy        | 0      | train      | 
+| 3 | test_cm   | MulticlassConfusionMatrix | 0      | train      | 
+| 4 | tcn       | Sequential                | 10.4 K | train      | 
+| 5 | head      | Linear                    | 330    | train      | 
+----------------------------------------------------------------  | 
+| 10.7 K    Trainable params                                      | 
+| 0         Non-trainable params                                  | 
+| 10.7 K    Total params                                          | 
+| 0.043     Total estimated model params size (MB)                | 
+| 18        Modules in train mode                                 | 
+| 0         Modules in eval mode                                  | 
 
 ## Repository Structure  
 
