@@ -20,8 +20,8 @@ class EEGClassifier_mel(BaseModel):
     """
     Classifier for MelSpectrogram and STFT spectrogram EEG representations.
     """
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, dropout=0.3):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, dropout=0.3, class_weights=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
 
         # C, H, W = in_shape  # channels, freq/mels, frames
 
@@ -104,10 +104,11 @@ class EEGNet_for_mel(BaseModel): # working
         kernel_length=256, # 64
         LR=1e-3,
         WEIGHT_DECAY=1e-5,
-        class_labels=None
+        class_labels=None,
+        class_weights=None
         
     ):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
         
         if F2 is None:
             F2 = F1 * D
@@ -239,8 +240,8 @@ class EEGClassifier_mel_with_res(BaseModel):
     Uses residual blocks + SE attention.
     """
     def __init__(self, in_channels=8, num_classes=6, LR=1e-3,
-                 WEIGHT_DECAY=1e-5, class_labels=None):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+                 WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
 
         # --------------------------------------------------------
         # Hierarchical encoder (ResNet-like)
@@ -325,8 +326,9 @@ class EEGClassifier_mel_small(BaseModel):
         WEIGHT_DECAY=1e-5,
         class_labels=None,
         dropout=0.25,
+        class_weights=None,
     ):
-        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels)
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
 
         self.in_channels = in_channels
 

@@ -68,6 +68,7 @@ def run_multiple_models(models=None, shared_parameters=None):
             "LR": 1e-3,
             "WEIGHT_DECAY": 0.0,
             "class_labels": [0, 7, 10.5, 12, 15.2, 18.1],
+            "class_weights": None,
         },
         "testing": True,
         "LOAD_CHECKPOINT": None,
@@ -126,6 +127,11 @@ def run_multiple_models(models=None, shared_parameters=None):
         print(f"\nProcessing  {model_name}...\n")
 
         try: 
+            checkpoint = ModelCheckpoint(
+                monitor="val_acc", mode="max", save_top_k=1,
+                filename="best-{epoch:02d}-val_acc={val_acc:.3f}",
+                auto_insert_metric_name=False,
+            )
             trainer = Trainer(
                 max_time=params["MAX_TIME"],
                 max_epochs=params["EPOCHS"],
@@ -135,40 +141,25 @@ def run_multiple_models(models=None, shared_parameters=None):
                 accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
 
                 enable_model_summary=params["SUMMARY"],
-                enable_checkpointing=True,
+                enable_checkpointing=False if params["skip_training"] else True,
+                callbacks=None if params["skip_training"] else [checkpoint],
                 benchmark=params["BENCHMARK"],
                 fast_dev_run=False,
                 
+                logger=None if params["skip_training"] else CSVLogger("logs", name=model_name),
                 num_sanity_val_steps=0,
                 log_every_n_steps=0,
                 enable_progress_bar=False,
             )
             # =====================================================
-            # OPTION 1: LOAD CHECKPOINT (skip training)
+            # OPTION 1: LOAD CHECKPOINT AND SKIP TRAINING
             # =====================================================
-            if params["LOAD_CHECKPOINT"] is not None and params["skip_training"] == True:
-                                
-                ckpt_path = params["LOAD_CHECKPOINT"]
-                
-                print(f"Loading model from checkpoint instead of training:\n  {ckpt_path}")
-
-                model = ModelClass.load_from_checkpoint(
-                    ckpt_path,
-                    **params["MODEL_KWARGS"]
-                ).to(device)
-                
-                best_model = model
-                best_path = ckpt_path
-                
-                log_dir = os.path.dirname(os.path.dirname(best_path))
-                metrics_path = os.path.join(log_dir, "metrics.csv")
-                results[model_name] = {
-                    "best_model": best_model,
-                    "metrics_path": metrics_path
-                }
+            if params["skip_training"]:
+                best_path = params["LOAD_CHECKPOINT"]
+                print(f"Loading model from checkpoint instead of training:\n  {best_path}")
               
             # =====================================================
-            # OPTION 2: TRAIN MODEL NORMALLY
+            # OPTION 2: TRAIN MODEL FROM CHECKPOINT OR FROM SCRATCH
             # =====================================================      
             else:
                 print(f"Training {model_name}...\n")
@@ -181,15 +172,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                     ).to(device)  # Lightning will load params into it
                 else:
                     # ---- Create model ----
-                    model = ModelClass(**params["MODEL_KWARGS"])
-                
-                # ---- Logger and checkpoint (unique per model) ----
-                csv_logger = CSVLogger("logs", name=model_name)
-                checkpoint = ModelCheckpoint(
-                    monitor="val_acc", mode="max", save_top_k=1,
-                    filename="best-{epoch:02d}-val_acc={val_acc:.3f}",
-                    auto_insert_metric_name=False,
-                )
+                    model = ModelClass(**params["MODEL_KWARGS"]).to(device)
 
                 # ---- Train ----
                 trainer.fit(model, train_loader, val_loader)
@@ -197,20 +180,27 @@ def run_multiple_models(models=None, shared_parameters=None):
                 # ---- Load best model ----
                 best_path = trainer.checkpoint_callback.best_model_path
                 print(f"Best model saved at: {best_path}")
-                best_model = ModelClass.load_from_checkpoint(best_path, **params["MODEL_KWARGS"])
-
-                log_dir = os.path.dirname(os.path.dirname(best_path))
-                metrics_path = os.path.join(log_dir, "metrics.csv")
-
-                results[model_name] = {
-                    "best_model": best_model,
-                    "metrics_path": metrics_path
-                }
+                
+        
+            # ----------------------------------------------------
+            # Load best model for testing and metrics plotting
+            # ----------------------------------------------------
+            best_model = ModelClass.load_from_checkpoint(
+                    best_path,
+                    **params["MODEL_KWARGS"]
+                ).to(device)
+                
+            log_dir = os.path.dirname(os.path.dirname(best_path))
+            metrics_path = os.path.join(log_dir, "metrics.csv")
+            results[model_name] = {
+                "best_model": best_model,
+                "metrics_path": metrics_path
+            }
+            
             # =====================================================
             # OPTION 4: Testing phase (if enabled)
             # =====================================================
             if params["testing"] == True:
-                best_model = best_model.to(device)
                 best_model.eval()
                 metrics = trainer.test(best_model, dataloaders=test_loader, verbose=False)[0]
                 acc = float(metrics.get("test_acc", 0.0))
@@ -222,7 +212,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 all_preds, all_targets = [], []
                 with torch.no_grad():
                     for X, y in test_loader:
-                        preds = model(X)
+                        preds = best_model(X)
                         preds = torch.argmax(preds, dim=1)
                         all_preds.append(preds.cpu())
                         all_targets.append(y.cpu())

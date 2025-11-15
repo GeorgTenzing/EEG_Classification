@@ -11,18 +11,15 @@ from torchmetrics.classification import Accuracy, ConfusionMatrix
 
 # Hierachical model definition example  
 class BaseModel(pl.LightningModule):
-    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None):
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
         super().__init__()
         self.in_channels = in_channels
         self.num_classes = num_classes
         # self.save_hyperparameters()
         self.lr = LR
         self.weight_decay = WEIGHT_DECAY
-        self.criterion = nn.CrossEntropyLoss()
         self.class_labels = class_labels
-        self.class_weights = None
-        self.label_0_weight = 1.0  # Weight for class 0 in loss function
-        # self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+        self.class_weights = class_weights
 
         self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
         self.val_acc   = Accuracy(task="multiclass", num_classes=num_classes)
@@ -38,20 +35,15 @@ class BaseModel(pl.LightningModule):
     # ------------------------------------------------------------
     def training_step(self, batch):
         X, y = batch
+        
+        if self.class_weights is None:
+            loss_fn = nn.CrossEntropyLoss()
+        else:
+            w = torch.tensor(self.class_weights, dtype=torch.float32, device=self.device)
+            loss_fn = nn.CrossEntropyLoss(weight=w)
+        
         preds = self(X)
-        
-        # Define class weights (you can tune the first one for label 0)
-        # weights = torch.tensor([0.5, 1, 1, 1, 1], dtype=torch.float32, device=self.device)
-        weights = torch.ones(self.num_classes, dtype=torch.float32, device=self.device)
-        weight = self.label_0_weight
-        # weights = torch.ones(self.class_weights, dtype=torch.float32, device=self.device)
-        # Use weighted cross-entropy
-        criterion = nn.CrossEntropyLoss(weight=weights)
-        
-        # criterion = nn.CrossEntropyLoss()
-        loss = criterion(preds, y)
-        
-        # loss = nn.functional.cross_entropy(preds, y)
+        loss = loss_fn(preds, y)
         
         acc = self.train_acc(preds, y)
         self.log("train_loss", loss, prog_bar=True, on_epoch=True)
