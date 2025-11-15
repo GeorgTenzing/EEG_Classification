@@ -3,3 +3,6 @@ datasets/csv
 datasets/raw
 datasets/numpy
 ideas/
+lightning_logs/
+__pycache__/
+*.pyc
