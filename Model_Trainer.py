@@ -70,6 +70,8 @@ def run_multiple_models(models=None, shared_parameters=None):
             "class_labels": [0, 7, 10.5, 12, 15.2, 18.1],
         },
         "testing": True,
+        "LOAD_CHECKPOINT": None,
+        "skip_training": False,
     }
         
     params = deepcopy(defaults)
@@ -121,56 +123,125 @@ def run_multiple_models(models=None, shared_parameters=None):
     results = {}
     for ModelClass in models_to_run:
         model_name = ModelClass.__name__
-        print(f"\nTraining {model_name}...\n")
+        print(f"\nProcessing  {model_name}...\n")
 
         try: 
-            # ---- Create model ----
-            model = ModelClass(**params["MODEL_KWARGS"]).to(device)
+            # =====================================================
+            # OPTION 1: LOAD CHECKPOINT (skip training)
+            # =====================================================
+            if params["LOAD_CHECKPOINT"] is not None and params["skip_training"] == True:
+                trainer = Trainer(
+                    max_time=params["MAX_TIME"],
+                    max_epochs=params["EPOCHS"],
+                    accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                    precision=16,
+                    gradient_clip_val=params["MAX_GRAD_NORM"],
+                    accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
 
-            # ---- Logger and checkpoint (unique per model) ----
-            csv_logger = CSVLogger("logs", name=model_name)
-            checkpoint = ModelCheckpoint(
-                monitor="val_acc", mode="max", save_top_k=1,
-                filename="best-{epoch:02d}-val_acc={val_acc:.3f}",
-                auto_insert_metric_name=False,
-            )
-
-            # ---- Fresh trainer for each model ----
-            trainer = Trainer(
-                max_time=params["MAX_TIME"],
-                max_epochs=params["EPOCHS"],
-                accelerator="gpu" if torch.cuda.is_available() else "cpu",
-                precision=16,
-                gradient_clip_val=params["MAX_GRAD_NORM"],
-                accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
-
-                enable_model_summary=params["SUMMARY"],
-                enable_checkpointing=True,
-                callbacks=[checkpoint],
-                benchmark=params["BENCHMARK"],
-                fast_dev_run=False,
+                    enable_model_summary=params["SUMMARY"],
+                    enable_checkpointing=True,
+                    benchmark=params["BENCHMARK"],
+                    fast_dev_run=False,
+                    
+                    num_sanity_val_steps=0,
+                    log_every_n_steps=0,
+                    enable_progress_bar=False,
+                )
+                                
+                ckpt_path = params["LOAD_CHECKPOINT"]
                 
-                logger=csv_logger,
-                num_sanity_val_steps=0,
-                log_every_n_steps=0,
-                enable_progress_bar=False,
-            )
+                print(f"Loading model from checkpoint instead of training:\n  {ckpt_path}")
 
-            # ---- Train ----
-            trainer.fit(model, train_loader, val_loader)
+                model = ModelClass.load_from_checkpoint(
+                    ckpt_path,
+                    **params["MODEL_KWARGS"]
+                ).to(device)
+                
+                best_model = model
+                best_path = ckpt_path
+                
+                log_dir = os.path.dirname(os.path.dirname(best_path))
+                metrics_path = os.path.join(log_dir, "metrics.csv")
+                results[model_name] = {
+                    "best_model": best_model,
+                    "metrics_path": metrics_path
+                }
+              
+            # =====================================================
+            # OPTION 2: TRAIN MODEL NORMALLY
+            # =====================================================      
+            else:
+                print(f"Training {model_name}...\n")
+                
+                # # ---- Load from checkpoint and continue training ----
+                # if params["LOAD_CHECKPOINT"] is not None:
+                #     print(f"Resuming training from checkpoint: {params['LOAD_CHECKPOINT']}")
+                #     model = ModelClass.load_from_checkpoint(
+                #         params["LOAD_CHECKPOINT"],
+                #         **params["MODEL_KWARGS"]
+                #     ).to(device)
+                # else:
+                #     # ---- Create model ----
+                #     model = ModelClass(**params["MODEL_KWARGS"]).to(device)
+                    
+                # ---- Load from checkpoint and continue training ----
+                if params["LOAD_CHECKPOINT"] is not None:
+                    model = ModelClass(**params["MODEL_KWARGS"])  # Lightning will load params into it
+                    print(f"Resuming training from checkpoint: {params['LOAD_CHECKPOINT']}")
+                    ckpt_path = params["LOAD_CHECKPOINT"]
+                else:
+                    # ---- Create model ----
+                    model = ModelClass(**params["MODEL_KWARGS"])
+                    ckpt_path = None
 
-            # ---- Load best model ----
-            best_path = trainer.checkpoint_callback.best_model_path
-            print(f"Best model saved at: {best_path}")
-            best_model = ModelClass.load_from_checkpoint(best_path, **params["MODEL_KWARGS"])
 
-            log_dir = os.path.dirname(os.path.dirname(best_path))
-            metrics_path = os.path.join(log_dir, "metrics.csv")
 
-            results[model_name] = {
-                "best_model": best_model,
-                "metrics_path": metrics_path
-            }
+
+                # ---- Logger and checkpoint (unique per model) ----
+                csv_logger = CSVLogger("logs", name=model_name)
+                checkpoint = ModelCheckpoint(
+                    monitor="val_acc", mode="max", save_top_k=1,
+                    filename="best-{epoch:02d}-val_acc={val_acc:.3f}",
+                    auto_insert_metric_name=False,
+                )
+
+                # ---- Fresh trainer for each model ----
+                trainer = Trainer(
+                    max_time=params["MAX_TIME"],
+                    max_epochs=params["EPOCHS"],
+                    accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                    precision=16,
+                    gradient_clip_val=params["MAX_GRAD_NORM"],
+                    accumulate_grad_batches=params["ACCUM_GRAD_BATCHES"],
+
+                    enable_model_summary=params["SUMMARY"],
+                    enable_checkpointing=True,
+                    callbacks=[checkpoint],
+                    benchmark=params["BENCHMARK"],
+                    fast_dev_run=False,
+                    
+                    logger=csv_logger,
+                    num_sanity_val_steps=0,
+                    log_every_n_steps=0,
+                    enable_progress_bar=False,
+                )
+
+                # ---- Train ----
+                # trainer.fit(model, train_loader, val_loader)
+                trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
+
+                # ---- Load best model ----
+                best_path = trainer.checkpoint_callback.best_model_path
+                print(f"Best model saved at: {best_path}")
+                best_model = ModelClass.load_from_checkpoint(best_path, **params["MODEL_KWARGS"])
+
+                log_dir = os.path.dirname(os.path.dirname(best_path))
+                metrics_path = os.path.join(log_dir, "metrics.csv")
+
+                results[model_name] = {
+                    "best_model": best_model,
+                    "metrics_path": metrics_path
+                }
             
             if params["testing"] == True:
                 best_model = best_model.to(device)
@@ -195,25 +266,13 @@ def run_multiple_models(models=None, shared_parameters=None):
                 # Use torchmetrics for a consistent CM
                 cm_metric = ConfusionMatrix(task="multiclass", num_classes=int(torch.max(all_targets)) + 1)
                 cm = cm_metric(all_preds, all_targets).numpy()
-                
-                # # Print class-wise accuracies
-                # class_accuracies = cm.diagonal() / cm.sum(axis=1)
-                # for i, class_acc in enumerate(class_accuracies):
-                #     print(f"  Class {i} Accuracy: {class_acc:.3f}")
-                
-                # # Print confusion matrix
-                # print("Confusion Matrix:")
-                # print(cm)
-                
+            
                 # Plot training metrics
                 for name, info in results.items():
                     print(f"\nPlotting {name}: Test Accuracy = {acc:.3f}")
                     plot_training_metrics(info["metrics_path"])
             
-            
-            
-            
-            
+        
 
         except Exception as e:
             print(f"Error training {model_name}: {e}")
@@ -285,4 +344,5 @@ def test_trained_models(results, test_loader):
 
     print("\nTesting complete for all models.\n")
     return results_out
+
 
