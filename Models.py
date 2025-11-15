@@ -123,7 +123,7 @@ class BaseModel(pl.LightningModule):
         fig, ax = plt.subplots(figsize=(6, 5))
 
         # Percent-based heatmap
-        im = ax.imshow(cm_percent, interpolation='nearest', cmap='Blues', vmin=0, vmax=100)
+        im = ax.imshow(cm_percent, interpolation='nearest', cmap='jet', vmin=0, vmax=100)
 
         ax.set_title("Confusion Matrix (% per true class)")
         ax.set_xlabel("Predicted label")
