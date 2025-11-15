@@ -32,12 +32,12 @@ TCNModel_withBase
 | 4 | tcn       | Sequential                | 10.4 K | train      | 
 | 5 | head      | Linear                    | 330    | train      |  
 
-| 10.7 K    Trainable params                                      | 
-| 0         Non-trainable params                                  | 
-| 10.7 K    Total params                                          | 
-| 0.043     Total estimated model params size (MB)                | 
-| 18        Modules in train mode                                 | 
-| 0         Modules in eval mode                                  | 
+| 10.7 K    | Trainable params                                      | 
+| 0         | Non-trainable params                                  | 
+| 10.7 K    | Total params                                          | 
+| 0.043     | Total estimated model params size (MB)                | 
+| 18        | Modules in train mode                                 | 
+| 0         | Modules in eval mode                                  | 
 
 ## Repository Structure  
 
