@@ -23,6 +23,8 @@ import warnings
 # logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
+
+# ideas: Gradient clipping, label smoothing
         
 def run_multiple_models(models=None, shared_parameters=None):
     """
