@@ -15,7 +15,7 @@ The goal is to provide efficient models suitable both for offline experimentatio
 
 | Scenario                                           | Test Accuracy |
 |----------------------------------------------------|--------------|
-| 10 SSVEP frequencies                                | 0.814        |
+| 10 SSVEP frequencies                                | 0.840        |
 | 4 SSVEP frequencies + “no-signal” class             | 0.817        |
 | 4 SSVEP frequencies only                            | 0.970        |
 
