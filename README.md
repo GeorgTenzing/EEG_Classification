@@ -1,5 +1,7 @@
 # EEG_Classification  
-A deep-learning pipeline for classifying EEG signals (especially SSVEP) using PyTorch Lightning.  
+A deep-learning pipeline for classifying EEG signals (especially SSVEP) using PyTorch Lightning. 
+Please take a look at Result_presentation.ipynb to see my latest and best performances 
+(mind that most models are retrained version of itself so the Validation Accuracy is only on the retrained timeframe) 
 
 ## Project Description  
 This repository implements a complete workflow for EEG-based classification, including:  
@@ -16,7 +18,7 @@ The goal is to provide efficient models suitable both for offline experimentatio
 | Scenario                                           | Test Accuracy |
 |----------------------------------------------------|--------------|
 | 10 SSVEP frequencies                                | 0.840        |
-| 4 SSVEP frequencies + “no-signal” class             | 0.817        |
+| 4 SSVEP frequencies + “no-signal” class             | 0.913        |
 | 4 SSVEP frequencies only                            | 0.970        |
 
 
