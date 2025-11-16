@@ -6,3 +6,4 @@ ideas/
 lightning_logs/
 __pycache__/
 *.pyc
+Random_models.py
