@@ -308,6 +308,9 @@ def plot_training_metrics(csv_path):
         plt.plot(df["epoch"], df["train_acc"], label="Training Accuracy", linestyle="--", alpha=0.7)
    
     plt.plot([df["epoch"].min(), df["epoch"].max()], [0.70, 0.70], 'r--', label="70% Accuracy")
+    plt.plot([df["epoch"].min(), df["epoch"].max()], [0.80, 0.80], 'r--', label="80% Accuracy")
+    plt.plot([df["epoch"].min(), df["epoch"].max()], [0.90, 0.90], 'g--', label="90% Accuracy")
+    plt.plot([df["epoch"].min(), df["epoch"].max()], [0.95, 0.95], 'g--', label="95% Accuracy")
     plt.plot(df["val_acc"].idxmax(), df["val_acc"].max(), 'go', label=f"Best Val Acc {df['val_acc'].max():.3f}")
     plt.ylim(0, 1)
     plt.xlabel("Epoch")
