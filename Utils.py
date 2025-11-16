@@ -303,7 +303,8 @@ def plot_training_metrics(csv_path):
 
     # Plot validation accuracy
     plt.figure(figsize=(16,5))
-    plt.plot(df["epoch"], df["val_acc"], label="Validation Accuracy", marker='^', linestyle=':', markersize=2)
+    # plt.plot(df["epoch"], df["val_acc"], label="Validation Accuracy", marker='^', linestyle=':', markersize=2)
+    plt.plot(df["epoch"], df["val_acc"], label="Validation Accuracy", linestyle="", marker=".", alpha=0.7, markersize=2)
     if "train_acc" in df.columns:
         plt.plot(df["epoch"], df["train_acc"], label="Training Accuracy", linestyle="--", alpha=0.7)
    

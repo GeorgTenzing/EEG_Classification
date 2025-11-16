@@ -20,7 +20,7 @@ import logging
 import warnings
 
 # Silence Lightning info messages
-# logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
