@@ -91,7 +91,7 @@ def run_multiple_models(models=None, shared_parameters=None):
         X_all, 
         y_all, 
         occipital_slice=params["OCCIPITAL_SLICE"], 
-        notch_50=params.get("NOTCH_50", False), 
+        notch_50=params["NOTCH_50"], 
     )
 
     n_total = len(dataset)
