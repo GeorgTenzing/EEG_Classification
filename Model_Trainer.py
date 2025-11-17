@@ -80,8 +80,8 @@ def run_multiple_models(models=None, shared_parameters=None):
     if shared_parameters:
         params.update(shared_parameters)
         
-    if params["SUMMARY"]:
-        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    # if params["SUMMARY"] == False:
+    #     logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
 
     # ============================================================
     # 1️ Load, prepare and split datasets

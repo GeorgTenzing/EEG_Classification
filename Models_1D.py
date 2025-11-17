@@ -72,6 +72,11 @@ class TCNModel_v1_outch64_GELU_head2(BaseModel):
 
 
 
+
+
+
+
+
 class EEGClassifier(BaseModel): 
     def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
         super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
