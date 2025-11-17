@@ -142,7 +142,7 @@ class EEGClassifier(BaseModel):
         x = self.classifier(x)
         return x
     
-    
+
 
 class MNISTNet(BaseModel): 
     def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):

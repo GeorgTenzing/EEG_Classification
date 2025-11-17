@@ -20,7 +20,6 @@ import logging
 import warnings
 
 # Silence Lightning info messages
-logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -80,6 +79,9 @@ def run_multiple_models(models=None, shared_parameters=None):
     params = deepcopy(defaults)
     if shared_parameters:
         params.update(shared_parameters)
+        
+    if params["SUMMARY"]:
+        logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
 
     # ============================================================
     # 1️ Load, prepare and split datasets
