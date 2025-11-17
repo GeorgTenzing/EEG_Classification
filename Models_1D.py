@@ -68,10 +68,34 @@ class TCNModel_v1_outch64_GELU_head2(BaseModel):
         return self.head(x)
 
 
+class TCNModel_v1_outch64_GELU_head2_small(BaseModel): 
+    def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
+        layers = []
+        in_ch, out_ch = in_channels, 16
+        for d in [1, 2, 4, 8, 16, 32]:
+            layers += [nn.Conv1d(in_ch, out_ch, 3, padding=d, dilation=d), 
+                       nn.BatchNorm1d(out_ch), 
+                       nn.GELU()]
+            in_ch = out_ch
+        self.tcn = nn.Sequential(*layers)
+        self.head = nn.Sequential(
+                nn.LayerNorm(out_ch),
+                nn.Linear(out_ch, 64),
+                nn.GELU(),
+                nn.Linear(64, num_classes)
+            )
 
-
-
-
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+    def forward(self, x):
+        x = self.tcn(x)           # (B, out_ch, T)
+        x = x.mean(-1)            # global average pooling
+        return self.head(x)
 
 
 

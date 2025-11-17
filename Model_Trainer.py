@@ -8,6 +8,7 @@ from torchmetrics.classification import ConfusionMatrix
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.utilities.model_summary import ModelSummary
 from copy import deepcopy
 
 from Dataset_torch import EEGDataset, EEGDataset_mel, EEGDataset_with_filters
@@ -20,6 +21,7 @@ import logging
 import warnings
 
 # Silence Lightning info messages
+logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -78,10 +80,7 @@ def run_multiple_models(models=None, shared_parameters=None):
         
     params = deepcopy(defaults)
     if shared_parameters:
-        params.update(shared_parameters)
-        
-    # if params["SUMMARY"] == False:
-    #     logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+        params.update(shared_parameters)  
 
     # ============================================================
     # 1️ Load, prepare and split datasets
@@ -155,6 +154,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 log_every_n_steps=0,
                 enable_progress_bar=False,
             )
+            
             # =====================================================
             # OPTION 1: LOAD CHECKPOINT AND SKIP TRAINING
             # =====================================================
@@ -177,7 +177,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 else:
                     # ---- Create model ----
                     model = ModelClass(**params["MODEL_KWARGS"]).to(device)
-
+                
                 # ---- Train ----
                 trainer.fit(model, train_loader, val_loader)
 
@@ -204,7 +204,10 @@ def run_multiple_models(models=None, shared_parameters=None):
             # =====================================================
             # OPTION 4: Testing phase (if enabled)
             # =====================================================
-            if params["testing"] == True:
+            if params["testing"]:
+                if params["SUMMARY"]:  
+                    print(ModelSummary(best_model, max_depth=1))
+                
                 best_model.eval()
                 metrics = trainer.test(best_model, dataloaders=test_loader, verbose=False)[0]
                 acc = float(metrics.get("test_acc", 0.0))
