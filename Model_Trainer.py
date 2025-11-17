@@ -130,6 +130,7 @@ def run_multiple_models(models=None, shared_parameters=None):
         print(f"\nProcessing  {model_name}...\n")
 
         try: 
+            
             checkpoint = ModelCheckpoint(
                 monitor="val_acc", mode="max", save_top_k=1,
                 filename="best-{epoch:02d}-val_acc={val_acc:.3f}",
@@ -178,6 +179,8 @@ def run_multiple_models(models=None, shared_parameters=None):
                     # ---- Create model ----
                     model = ModelClass(**params["MODEL_KWARGS"]).to(device)
                 
+                if params["SUMMARY"]:  
+                    print(ModelSummary(model, max_depth=1))
                 # ---- Train ----
                 trainer.fit(model, train_loader, val_loader)
 
