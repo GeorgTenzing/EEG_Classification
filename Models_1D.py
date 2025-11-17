@@ -205,7 +205,7 @@ class MNISTNet(BaseModel):
     
     
     
-
+# Error training EEGNet: mat1 and mat2 shapes cannot be multiplied (256x1408 and 1920x4)
 class EEGNet(BaseModel): 
     """
     EEGNet v4 (Lawhern et al., 2018) — adapted for your BCI SSVEP dataset
