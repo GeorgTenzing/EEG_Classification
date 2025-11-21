@@ -17,10 +17,10 @@ The goal is to provide efficient models suitable both for offline experimentatio
 
 | Scenario                                            | Test Accuracy |
 |-----------------------------------------------------|---------------|
-| 4  SSVEP frequencies                                | 0.979         |
-| 10 SSVEP frequencies                                | 0.913         |
-| 4  SSVEP frequencies + “no-signal” class            | 0.890         |
-| 4  SSVEP frequencies + “no-signal” class            | 0.890         |
+| 4  SSVEP frequencies                                | 97.9 %        |
+| 10 SSVEP frequencies                                | 91.3 %        |
+| 4  SSVEP frequencies + “no-signal” class            | 89.0 %        |
+| PhysioNet Motor Imagery (left vs right fist)        | 76.3 %        |
 
 
 ## Models 
