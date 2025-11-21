@@ -20,30 +20,46 @@ The goal is to provide efficient models suitable both for offline experimentatio
 | 4  SSVEP frequencies                                | 0.979         |
 | 10 SSVEP frequencies                                | 0.913         |
 | 4  SSVEP frequencies + “no-signal” class            | 0.890         |
+| 4  SSVEP frequencies + “no-signal” class            | 0.890         |
 
 
+## Models 
+TCNModel_v1_outch64_GELU_head2
+|   | Name      | Type                      | Params | Mode       | 
+| --|-----------|---------------------------|--------|------------| 
+| 4 | tcn       | Sequential                | 39.2 K | train      | 
+| 5 | head      | Linear                    | 4.5 K  | train      | 
+ 
+| Number    | Object                                              |
+| ----------|-----------------------------------------------------| 
+| 43.7 K    | Total params                                        | 
+| 0.175     | Total estimated model params size (MB)              |
 
-## Best Model 
+
 TCNModel_withBase
 
 |   | Name      | Type                      | Params | Mode       | 
 | --|-----------|---------------------------|--------|------------| 
-| 0 | train_acc | MulticlassAccuracy        | 0      | train      | 
-| 1 | val_acc   | MulticlassAccuracy        | 0      | train      | 
-| 2 | test_acc  | MulticlassAccuracy        | 0      | train      | 
-| 3 | test_cm   | MulticlassConfusionMatrix | 0      | train      | 
 | 4 | tcn       | Sequential                | 10.4 K | train      | 
 | 5 | head      | Linear                    | 330    | train      | 
  
-
 | Number    | Object                                              |
 | ----------|-----------------------------------------------------| 
-| 10.7 K    | Trainable params                                    | 
-| 0         | Non-trainable params                                | 
 | 10.7 K    | Total params                                        | 
-| 0.043     | Total estimated model params size (MB)              | 
-| 18        | Modules in train mode                               | 
-| 0         | Modules in eval mode                                | 
+| 0.043     | Total estimated model params size (MB)              |
+
+TCNModel_v1_outch64_GELU_head2_smallest
+
+|   | Name      | Type                      | Params | Mode       | 
+| --|-----------|---------------------------|--------|------------| 
+| 4 | tcn       | Sequential                | 1.5 K  | train      | 
+| 5 | head      | Linear                    | 852    | train      | 
+ 
+| Number    | Object                                              |
+| ----------|-----------------------------------------------------| 
+| 2.4 K     | Total params                                        | 
+| 0.009     | Total estimated model params size (MB)              |
+
 
 ## Repository Structure  
 
