@@ -1,59 +1,17 @@
 from scipy.fftpack import fft
 import torch
+import pyedflib
 import numpy as np
 from torch.utils.data import Dataset
 import torchaudio
 from torchaudio.transforms import MelSpectrogram
 from scipy.signal import butter, filtfilt, iirnotch
+from Utils import build_edf_index
 
 
 # ============================================================
 # 1. Unified preprocessing + dataset class
 # ============================================================
-class EEGDataset(Dataset):
-    """
-    EEG dataset with built-in preprocessing:
-      - trial-wise normalization
-      - channel selection (now 8 EEG channels)
-      - conversion to tensors
-    """
-    def __init__(self, X, y, occipital_slice=None):
-        """
-        Args:
-            X (np.ndarray): EEG data (n_windows, n_channels, n_samples)
-            y (np.ndarray): Labels   (n_windows, n_samples)
-            occipital_slice (slice): Optional channel selection slice
-        """
-
-        X = np.asarray(X, dtype=np.float32)
-        y = np.asarray(y, dtype=np.int64)
-
-        n_windows = X.shape[0]
-
-        # --- Normalize each windows individually ---
-        for i in range(n_windows):
-            mean = X[i].mean()
-            std  = X[i].std() if X[i].std() != 0 else 1.0
-            X[i] = (X[i] - mean) / std
-
-        # --- Channel selection (for your setup: 8 channels total) ---
-        if occipital_slice is not None:
-            X = X[:, occipital_slice, :]
-
-        # --- Convert to tensors ---
-        self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.long)
-
-    def __len__(self):
-        return len(self.y)
-
-    def __getitem__(self, idx):
-        # return self.X[idx].unsqueeze(0), self.y[idx]
-        return self.X[idx], self.y[idx]
-    
-
-
-
 class EEGDataset_with_filters(Dataset):
 
     def __init__(
@@ -61,7 +19,7 @@ class EEGDataset_with_filters(Dataset):
         X, y,
         occipital_slice=None,
         notch_50=False,
-        sample_rate=500
+        sample_rate=500,
     ):
         """
         Args:
@@ -113,63 +71,84 @@ class EEGDataset_with_filters(Dataset):
         return self.X[idx], self.y[idx]
 
 
-class EEGDataset_with_filters(Dataset):
+class EEGDataset_with_filters_EDF_Stream(Dataset):
+    """
+    Streaming EEG dataset:
+    - reads each window from EDF on-demand
+    - applies 50 Hz notch filtering (optional)
+    - per-window normalization
+    - optional channel slicing
+    """
 
     def __init__(
         self,
-        X, y,
+        data_path,
         occipital_slice=None,
         notch_50=False,
-        sample_rate=500
+        sample_rate=160,     # PhysioNet EEGMMIDB sample rate
+        window_length=480,   # default 3 seconds → 160*3
+        subjects=None,
+        runs=None,
+        classes=None,
     ):
-        """
-        Args:
-            X : (n_windows, n_channels, n_samples)
-            y : labels
-            notch_50 : bool → apply 50 Hz notch
-        """
+        self.index = build_edf_index(subjects=subjects, base_path=data_path, runs=runs, classes=classes)
+        self.notch_50 = notch_50
+        self.sample_rate = sample_rate
+        self.window_length = window_length
+        self.occipital_slice = occipital_slice
 
-        X = np.asarray(X, dtype=np.float32)
-        y = np.asarray(y, dtype=np.int64)
-
-        # -----------------------------
-        # Filter helpers
-        # -----------------------------
-        def apply_notch(x):
-            b, a = iirnotch(50, Q=30, fs=sample_rate)
-            return filtfilt(b, a, x, axis=-1)
-        # -----------------------------
-        # Apply filters to all windows
-        # -----------------------------
-        for i in range(X.shape[0]):
-
-            window = X[i]  # shape (C, T)
-
-            if notch_50:
-                window = apply_notch(window)
-
-            X[i] = window
-
-        # ---------------------------
-        # Normalize per-window
-        # ---------------------------
-        for i in range(X.shape[0]):
-            mean = X[i].mean()
-            std = X[i].std() if X[i].std() != 0 else 1.0
-            X[i] = (X[i] - mean) / std
-
-        # Optional channel selection
-        if occipital_slice is not None:
-            X = X[:, occipital_slice, :]
-
-        self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.long)
+        # Prepare notch filter once
+        if notch_50:
+            self.b_notch, self.a_notch = iirnotch(50, Q=30, fs=sample_rate)
 
     def __len__(self):
-        return len(self.y)
+        return len(self.index)
 
     def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
+        info = self.index[idx]
+
+        edf_path = info["edf_path"]
+        onset_s  = info["onset"]            # in seconds
+        label    = info["label"]
+
+        # Convert onset to sample indices
+        start = int(onset_s * self.sample_rate)
+        end   = start + self.window_length
+
+        # ------------------------------------------------------
+        # Load only the needed window from EDF file
+        # ------------------------------------------------------
+        with pyedflib.EdfReader(edf_path) as f:
+            n_channels = f.signals_in_file
+            X = np.zeros((n_channels, self.window_length), dtype=np.float32)
+            for ch in range(n_channels):
+                sig = f.readSignal(ch)[start:end]
+                X[ch] = sig.astype(np.float32)
+
+        # ------------------------------------------------------
+        # Optional channel slicing
+        # ------------------------------------------------------
+        if self.occipital_slice is not None:
+            X = X[self.occipital_slice, :]
+
+        # ------------------------------------------------------
+        # Apply 50 Hz notch filter
+        # ------------------------------------------------------
+        if self.notch_50:
+            X = filtfilt(self.b_notch, self.a_notch, X, axis=-1)
+
+        # ------------------------------------------------------
+        # Normalize each window (mean/std per window)
+        # ------------------------------------------------------
+        mean = X.mean()
+        std = X.std() if X.std() != 0 else 1.0
+        X = (X - mean) / std
+
+        # Convert to torch
+        return torch.tensor(X, dtype=torch.float32), torch.tensor(label, dtype=torch.long)
+
+
+
 
 
 

@@ -11,9 +11,9 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.utilities.model_summary import ModelSummary
 from copy import deepcopy
 
-from Dataset_torch import EEGDataset, EEGDataset_mel, EEGDataset_with_filters
+from Dataset_torch import EEGDataset_with_filters
 from Models_1D import EEGClassifier 
-from Utils import plot_training_metrics
+from Utils import plot_training_metrics, benchmark_loader, epoch_time
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
     
@@ -26,7 +26,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # ideas: Gradient clipping, label smoothing
-        
+   
 def run_multiple_models(models=None, shared_parameters=None):
     """
     Train multiple EEG models sequentially on the same dataset and dataloaders.
@@ -46,6 +46,8 @@ def run_multiple_models(models=None, shared_parameters=None):
         "DATASET_CLASS": EEGDataset_with_filters,
         "NOTCH_50": False,
         "SAMPLE_RATE": 500,
+        "RUNS": [4, 8, 12],
+        "CLASSES": ["T0", "T1", "T2"],
         
         "MAX_TIME": "00:00:15:00",
         "EPOCHS": 90000,
@@ -60,6 +62,7 @@ def run_multiple_models(models=None, shared_parameters=None):
         "SHUFFLE": True,
         
         "OCCIPITAL_SLICE": slice(0, 8),
+        "SUBJECTS": [s for s in range(1, 109) if s not in [88, 92, 100, 104]],
         
         "TRAIN_SPLIT": 0.7,
         "VAL_SPLIT": 0.15,
@@ -86,16 +89,28 @@ def run_multiple_models(models=None, shared_parameters=None):
     # 1️ Load, prepare and split datasets
     # ============================================================
     print(f"Loading data from: {params['data_path']}")
-    data = np.load(params["data_path"])
-    X_all, y_all = data["X"], data["y"]
-    print(f"Data loaded: X={X_all.shape}, y={y_all.shape}")
-
-    dataset = params["DATASET_CLASS"](
-        X_all, 
-        y_all, 
-        occipital_slice=params["OCCIPITAL_SLICE"], 
-        notch_50=params["NOTCH_50"], 
-    )
+    if params["data_path"].endswith(".npz"):
+        data = np.load(params["data_path"])
+        X_all, y_all = data["X"], data["y"]
+        print(f"Data loaded: X={X_all.shape}, y={y_all.shape}")
+        
+        dataset = params["DATASET_CLASS"](
+            X_all, 
+            y_all, 
+            occipital_slice=params["OCCIPITAL_SLICE"], 
+            notch_50=params["NOTCH_50"], 
+            sample_rate=params["SAMPLE_RATE"],
+        )
+    else:
+        dataset = params["DATASET_CLASS"](
+            data_path=params["data_path"],
+            occipital_slice=params["OCCIPITAL_SLICE"], 
+            notch_50=params["NOTCH_50"], 
+            sample_rate=params["SAMPLE_RATE"],
+            subjects=params["SUBJECTS"],
+            runs=params["RUNS"],
+            classes=params["CLASSES"],
+        )
 
     n_total = len(dataset)
     n_train = int(params["TRAIN_SPLIT"] * n_total)
@@ -119,6 +134,8 @@ def run_multiple_models(models=None, shared_parameters=None):
     val_loader  = DataLoader(val_ds, batch_size=64, shuffle=False, num_workers=4)
     test_loader = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=4)
     print("Dataloaders ready")
+    # benchmark_loader(train_ds, batch_size=params["BATCH_SIZE"])
+    # epoch_time(train_loader, batch_size=params["BATCH_SIZE"])
     
     # ============================================================
     # 3️ Loop over each model (new Trainer & Logger inside)
@@ -247,68 +264,4 @@ def run_multiple_models(models=None, shared_parameters=None):
 
     print("\nAll models processed successfully!\n")
     return results, test_loader
-
-
-        
-def test_trained_models(results, test_loader):
-    """
-    Evaluate trained models returned by run_multiple_models() on the shared test_loader.
-
-    Args:
-        results (dict): From run_multiple_models(), containing
-                        {'best_model': model, 'metrics_path': ...} per model.
-        test_loader (DataLoader): Shared test set.
-
-    Returns:
-        dict: {model_name: {'test_acc': float, 'confusion_matrix': np.ndarray}}
-    """
-    # logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-    trainer = Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu")
-
-    results_out = {}
-    for name, info in results.items():
-        print(f"\nTesting {name}...")
-
-        try:
-            model = info["best_model"].to(device)
-            model.eval()
-
-            # ---------------------------------------------------
-            # Lightning test accuracy (if test_step defined)
-            # ---------------------------------------------------
-            metrics = trainer.test(model, dataloaders=test_loader, verbose=False)[0]
-            acc = float(metrics.get("test_acc", 0.0))
-            print(f"{name}: Test accuracy = {acc:.3f}")
-            
-            # ---------------------------------------------------
-            # Compute confusion matrix manually
-            # ---------------------------------------------------
-            all_preds, all_targets = [], []
-            with torch.no_grad():
-                for X, y in test_loader:
-                    preds = model(X)
-                    preds = torch.argmax(preds, dim=1)
-                    all_preds.append(preds.cpu())
-                    all_targets.append(y.cpu())
-
-            all_preds   = torch.cat(all_preds)
-            all_targets = torch.cat(all_targets)
-
-            # Use torchmetrics for a consistent CM
-            cm_metric = ConfusionMatrix(task="multiclass", num_classes=int(torch.max(all_targets)) + 1)
-            cm = cm_metric(all_preds, all_targets).numpy()
-
-            results_out[name] = {
-                "test_acc": acc,
-                "confusion_matrix": cm
-            }
-
-        except Exception as e:
-            print(f"Error testing {name}: {e}")
-            results_out[name] = None
-            continue
-
-    print("\nTesting complete for all models.\n")
-    return results_out
-
 

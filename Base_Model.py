@@ -15,11 +15,16 @@ class BaseModel(pl.LightningModule):
         super().__init__()
         self.in_channels = in_channels
         self.num_classes = num_classes
-        # self.save_hyperparameters()
         self.lr = LR
         self.weight_decay = WEIGHT_DECAY
         self.class_labels = class_labels
         self.class_weights = class_weights
+        
+        if class_weights is None:
+            self.loss_fn = nn.CrossEntropyLoss()
+        else:
+            w = torch.tensor(class_weights, dtype=torch.float32, device=self.device)
+            self.loss_fn = nn.CrossEntropyLoss(weight=w)
 
         self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
         self.val_acc   = Accuracy(task="multiclass", num_classes=num_classes)
@@ -35,16 +40,9 @@ class BaseModel(pl.LightningModule):
     # ------------------------------------------------------------
     def training_step(self, batch):
         X, y = batch
-        
-        if self.class_weights is None:
-            loss_fn = nn.CrossEntropyLoss()
-        else:
-            w = torch.tensor(self.class_weights, dtype=torch.float32, device=self.device)
-            loss_fn = nn.CrossEntropyLoss(weight=w)
-        
         preds = self(X)
-        loss = loss_fn(preds, y)
-        
+  
+        loss = self.loss_fn(preds, y)
         acc = self.train_acc(preds, y)
         self.log("train_loss", loss, prog_bar=True, on_epoch=True)
         self.log("train_acc", acc, prog_bar=True, on_epoch=True)
@@ -55,9 +53,9 @@ class BaseModel(pl.LightningModule):
     # ------------------------------------------------------------
     def validation_step(self, batch):
         X, y = batch
-        preds = self(X)
-        criterion = nn.CrossEntropyLoss()
-        loss = criterion(preds, y)
+        preds = self(X) 
+        
+        loss = self.loss_fn(preds, y)
         acc = self.val_acc(preds, y)
         self.log("val_loss", loss, prog_bar=True, on_epoch=True, logger=True, on_step=False)
         self.log("val_acc", acc, prog_bar=True, on_epoch=True, logger=True, on_step=False)
@@ -68,7 +66,8 @@ class BaseModel(pl.LightningModule):
     def test_step(self, batch):
         X, y = batch
         preds = self(X)
-        loss = nn.functional.cross_entropy(preds, y)
+        
+        loss = self.loss_fn(preds, y)
         acc = self.test_acc(preds, y)
         
         # Store confusion matrix for later
@@ -144,5 +143,3 @@ class BaseModel(pl.LightningModule):
 
         # --- Reset confusion matrix ---
         self.test_cm.reset()
-
-

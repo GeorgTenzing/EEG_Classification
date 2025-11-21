@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt, iirnotch
+import pyedflib
+import time
+from torch.utils.data import DataLoader
+import itertools
 
 
 # ============================================================
@@ -286,6 +290,111 @@ def downsample_label(X, y, target_label=0, keep_ratio=0.2, seed=42):
     y_bal = y[keep_idx]
 
     return X_bal, y_bal
+
+
+
+def build_edf_index(subjects, base_path, runs=None, classes=None):
+    label_map = {t: i for i, t in enumerate(classes)}
+    print("Using label_map:", label_map)
+    
+    index = []
+    for subject in subjects:
+        for run in runs:
+            edf_path = f"{base_path}/S{subject:03d}/S{subject:03d}R{run:02d}.edf"
+            try:
+                with pyedflib.EdfReader(edf_path) as f:
+                    annotations = f.readAnnotations()
+                    onset_list, duration_list, label_list = annotations
+
+                    for onset, duration, desc in zip(onset_list, duration_list, label_list):
+                        if desc not in classes:
+                            continue
+                        
+                        if duration < 3.0:  # less than 3 seconds
+                            print(f"Warning: Short duration {duration}s for subject {subject}, run {run}, onset {onset}s")
+
+                        index.append({
+                            "edf_path": edf_path,
+                            "onset": float(onset),
+                            "duration": float(duration),
+                            "label": label_map[desc],
+                            "subject": subject,
+                            "run": run
+                        })
+            except FileNotFoundError:
+                print(f"Missing file: {edf_path}")
+
+    return index
+
+
+
+
+
+def benchmark_loader(dataset, 
+                     batch_size=64, 
+                     worker_values=[9,10,11,12,13],  # [1,2,4,6] NUM_WORKERS=11, PREFETCH=1 → 6.29 batches/sec
+                    #  worker_values=[4, 6, 8],
+                     prefetch_values=[1]
+                    ):
+    results = []
+
+    for nw, pf in itertools.product(worker_values, prefetch_values):
+
+        loader = DataLoader(dataset,
+                            batch_size=batch_size,
+                            shuffle=True,
+                            num_workers=nw,
+                            prefetch_factor=pf,
+                            pin_memory=True, 
+                            persistent_workers=True,
+                            )
+
+        # Warm-up
+        it = iter(loader)
+        try:
+            next(it)
+        except StopIteration:
+            continue
+
+        # Benchmark batch_size batches
+        start = time.time()
+        for i, batch in enumerate(loader):
+            if i == batch_size:
+                break
+        elapsed = time.time() - start
+
+        bps = batch_size / elapsed
+        results.append((nw, pf, bps))
+        print(f"NUM_WORKERS={nw}, PREFETCH={pf} → {bps:.2f} batches/sec")
+
+    return results
+
+def epoch_time(train_loader, batch_size=64):
+    import time
+
+    loader = train_loader
+    start = time.time()
+
+    for i, batch in enumerate(loader):
+        if i == batch_size:
+            break
+
+    end = time.time()
+    time_per_batch = (end - start) / batch_size
+    batches_per_epoch = len(loader)
+
+    print(f"Estimated time per epoch: {time_per_batch * batches_per_epoch:.2f} sec")
+
+
+
+
+
+
+
+
+
+
+
 
 
 
