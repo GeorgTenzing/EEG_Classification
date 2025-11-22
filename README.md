@@ -15,11 +15,22 @@ The goal is to provide efficient models suitable both for offline experimentatio
 
 ## Performance
 
+Model: TCNModel_v1_outch64_GELU_head2
+
 | Scenario                                            | Test Accuracy |
 |-----------------------------------------------------|---------------|
 | 4  SSVEP frequencies                                | 97.9 %        |
 | 10 SSVEP frequencies                                | 91.3 %        |
 | 4  SSVEP frequencies + “no-signal” class            | 89.0 %        |
+| PhysioNet Motor Imagery (left vs right fist)        | 76.3 %        |
+
+Model: TRM_EEG_Model_v1
+
+| Scenario                                            | Test Accuracy |
+|-----------------------------------------------------|---------------|
+| 4  SSVEP frequencies                                | ---- %        |
+| 10 SSVEP frequencies                                | ---- %        |
+| 4  SSVEP frequencies + “no-signal” class            | ---- %        |
 | PhysioNet Motor Imagery (left vs right fist)        | 80.4 %        |
 
 
