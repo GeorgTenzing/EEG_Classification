@@ -69,13 +69,13 @@ class TRMSharedNet(nn.Module):
 # ---------------------------------------------------------------------------
 # 3. Full TRM Model for EEG
 # ---------------------------------------------------------------------------
-# class TRM_EEG_Model(nn.Module):
+
 class TRM_EEG_Model_v1(BaseModel_new):
     def __init__(self, 
                  in_channels=8, 
                  D=128,    
-                 n_inner=6,       # inner recursions inside deep supervision
-                 T_outer=3,       # deep supervision steps 
+                 n_inner=1,       # inner recursions inside deep supervision
+                 T_outer=30,       # deep supervision steps 
                  num_classes=6, 
                  LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
         super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
@@ -123,7 +123,7 @@ class TRM_EEG_Model_v1(BaseModel_new):
         B = x.shape[0]
 
         # 1) encode EEG → x_embed: (B, D)
-        x_embed = self.encoder(x)
+        x_embed = self.encoder(x) 
 
         # 2) initialize y and z (repeat for batch dimension)
         y = self.y_init.repeat(B, 1)  # (B, D)
@@ -137,6 +137,81 @@ class TRM_EEG_Model_v1(BaseModel_new):
             # inner recursion loop
             for i in range(self.n_inner):
                 y, z = self.recurse_once(x_embed, y, z)
+
+            # classifier output at this deep supervision step
+            logits = self.output_head(y)   # (B, num_classes)
+            # logits_list.append(logits)
+
+        # 4) Return final output for training/inference
+        # return logits_list         # return list of predictions for each DS step
+        return logits     # return final prediction only
+
+
+class TRM_EEG_Model_v2(BaseModel_new):
+    def __init__(self, 
+                 in_channels=8, 
+                 D=128,    
+                 n_inner=1,       # inner recursions inside deep supervision
+                 T_outer=30,       # deep supervision steps 
+                 num_classes=6, 
+                 LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
+
+        # save config
+        self.D = D
+        self.num_classes = num_classes
+        self.n_inner = n_inner
+        self.T_outer = T_outer
+
+        # 1) EEG encoder: (B, C, T) → (B, D)
+        self.encoder = TCNModel_v1_outch64_GELU_head2_small(in_channels=in_channels, D=D)
+
+        # 2) latent y and z init (learned parameters)
+        self.y_init = nn.Parameter(torch.randn(1, D))
+        self.z_init = nn.Parameter(torch.randn(1, D))
+
+        # 3) shared TRM tiny network
+        self.shared_net = TRMSharedNet(D)
+
+        # 4) output classifier head
+        self.output_head = nn.Linear(D, num_classes)
+
+    # ----------------------------------------------------------------
+    # Single recursion step
+    # z ← f(x, y, z)
+    # y ← f(y, z)  (using same network, but concatenating inputs correctly)
+    # ----------------------------------------------------------------
+    def recurse_once(self, x_embed, y, z):
+        # Update z first: z ← f(x + y + z)
+        z_new = self.shared_net(x_embed + y + z)
+        return z_new
+
+    # ----------------------------------------------------------------
+    # Forward pass (deep supervision)
+    # ----------------------------------------------------------------
+    def forward(self, x):
+        # -------------------------------------------------------------
+        # x: (B, C, T)
+        # -------------------------------------------------------------
+        B = x.shape[0]
+
+        # 1) encode EEG → x_embed: (B, D)
+        x_embed = self.encoder(x) 
+
+        # 2) initialize y and z (repeat for batch dimension)
+        y = self.y_init.repeat(B, 1)  # (B, D)
+        z = self.z_init.repeat(B, 1)  # (B, D)
+
+        # 3) deep supervision outer loop
+        logits_list = []
+
+        for t in range(self.T_outer):
+
+            # inner recursion loop
+            for i in range(self.n_inner):
+                z = self.recurse_once(x_embed, y, z)
+                
+            y = self.shared_net(y + z)
 
             # classifier output at this deep supervision step
             logits = self.output_head(y)   # (B, num_classes)
