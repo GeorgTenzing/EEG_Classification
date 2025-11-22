@@ -174,7 +174,7 @@ def run_multiple_models(models=None, shared_parameters=None):
                 
                 # gradient_clip_val=1.0,
                 # gradient_clip_algorithm="norm",
-                detect_anomaly=True,
+                # detect_anomaly=True,
             )
             
             # =====================================================
