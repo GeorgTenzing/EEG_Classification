@@ -326,7 +326,8 @@ def build_edf_index(subjects, base_path, runs=None, classes=None):
 
     return index
 
-def build_edf_index_2(subjects, base_path, runs=None):
+
+def build_edf_index_2(subjects, base_path, runs=None, classes=None):
     
     index = []
 
@@ -343,6 +344,7 @@ def build_edf_index_2(subjects, base_path, runs=None):
 
                         # ignore weird labels
                         if desc not in ["T0", "T1", "T2"]:
+                            print(f"Skipping unknown label {desc} for subj {subject}, run {run}, onset {onset}")
                             continue
 
                         # map based on run
@@ -378,21 +380,19 @@ def map_label(run, desc):
     - Second set: 5,6,9,10,13,14 → both fists / both feet
     """
 
-    desc = str(desc)   # normalize np.str_
-
     # T0 are only rest trials
     if desc == "T0":
-        return 0  # or skip rest if you want only 4 MI classes
+        continue  # or skip rest if you want only 4 MI classes
 
     # FIRST SET (left/right)
     if run in [3, 4, 7, 8, 11, 12]:
-        if desc == "T1": return 1  # left
-        if desc == "T2": return 2  # right
+        if desc == "T1": return 0  # left
+        if desc == "T2": return 1  # right
 
     # SECOND SET (both fists / both feet)
     if run in [5, 6, 9, 10, 13, 14]:
-        if desc == "T1": return 3  # both fists
-        if desc == "T2": return 4  # both feet
+        if desc == "T1": return 2  # both fists
+        if desc == "T2": return 3  # both feet
 
     raise ValueError(f"Unknown run {run} or label {desc}")
 

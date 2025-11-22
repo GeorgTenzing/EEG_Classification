@@ -20,6 +20,8 @@ The goal is to provide efficient models suitable both for offline experimentatio
 | 4  SSVEP frequencies                                | 97.9 %        |
 | 10 SSVEP frequencies                                | 91.3 %        |
 | 4  SSVEP frequencies + “no-signal” class            | 89.0 %        |
+
+This is wrong: need to rework the edf loader
 | PhysioNet Motor Imagery (left vs right fist)        | 76.3 %        |
 
 
