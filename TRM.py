@@ -383,7 +383,7 @@ class TRM_EEG_Model_v1_3(BaseModel_new):
 
 
 
-class TRM_EEG_Model_v1_4(BaseModel_new): #ran out of memeory but also very slow 
+class TRM_EEG_Model_v1_4(BaseModel_new): #ran out of memory
     def __init__(self, 
                  in_channels=8, 
                  D=190,    
