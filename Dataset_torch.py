@@ -92,7 +92,6 @@ class EEGDataset_with_filters_EDF_Stream(Dataset):
         classes=None,
     ): 
         self.index = build_edf_index_2(subjects=subjects, base_path=data_path, runs=runs, classes=classes)
-        # self.index = build_edf_index(subjects=subjects, base_path=data_path, runs=runs, classes=classes)
         self.notch_50 = notch_50
         self.sample_rate = sample_rate
         self.window_length = window_length

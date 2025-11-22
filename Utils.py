@@ -307,7 +307,9 @@ def build_edf_index(subjects, base_path, runs=None, classes=None):
                     onset_list, duration_list, label_list = annotations
 
                     for onset, duration, desc in zip(onset_list, duration_list, label_list):
+                        # skip labels not in classes
                         if desc not in classes:
+                            # print(f"Skipping unknown label {desc} for subj {subject}, run {run}, onset {onset}")
                             continue
                         
                         if duration < 3.0:  # less than 3 seconds
@@ -325,76 +327,6 @@ def build_edf_index(subjects, base_path, runs=None, classes=None):
                 print(f"Missing file: {edf_path}")
 
     return index
-
-
-def build_edf_index_2(subjects, base_path, runs=None, classes=None):
-    
-    index = []
-
-    for subject in subjects:
-        for run in runs:
-            edf_path = f"{base_path}/S{subject:03d}/S{subject:03d}R{run:02d}.edf"
-
-            try:
-                with pyedflib.EdfReader(edf_path) as f:
-                    onset_list, duration_list, label_list = f.readAnnotations()
-
-                    for onset, duration, desc in zip(onset_list, duration_list, label_list):
-                        desc = str(desc)
-
-                        # ignore weird labels
-                        if desc not in ["T0", "T1", "T2"]:
-                            print(f"Skipping unknown label {desc} for subj {subject}, run {run}, onset {onset}")
-                            continue
-
-                        # map based on run
-                        label = map_label(run, desc)
-
-                        # skip T0 if you want only MI classes
-                        if label == 0:   
-                            continue
-
-                        if duration < 3.0:
-                            print(f"Short trial: subj {subject}, run {run}, onset {onset}, duration {duration}")
-
-                        index.append({
-                            "edf_path": edf_path,
-                            "onset": float(onset),
-                            "duration": float(duration),
-                            "label": label,
-                            "subject": subject,
-                            "run": run
-                        })
-
-            except FileNotFoundError:
-                print(f"Missing file: {edf_path}")
-
-    return index
-
-
-def map_label(run, desc):
-    """
-    Returns class index based on run + annotation.
-    Runs:
-    - First set: 3,4,7,8,11,12  → left/right
-    - Second set: 5,6,9,10,13,14 → both fists / both feet
-    """
-
-    # T0 are only rest trials
-    if desc == "T0":
-        continue  # or skip rest if you want only 4 MI classes
-
-    # FIRST SET (left/right)
-    if run in [3, 4, 7, 8, 11, 12]:
-        if desc == "T1": return 0  # left
-        if desc == "T2": return 1  # right
-
-    # SECOND SET (both fists / both feet)
-    if run in [5, 6, 9, 10, 13, 14]:
-        if desc == "T1": return 2  # both fists
-        if desc == "T2": return 3  # both feet
-
-    raise ValueError(f"Unknown run {run} or label {desc}")
 
 
 
