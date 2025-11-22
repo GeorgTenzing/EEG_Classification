@@ -19,33 +19,6 @@ from Base_Model import BaseModel_new
 # 1. Small EEG Encoder (TCN-style)
 # Turns (B, C, T) → (B, D)
 # ---------------------------------------------------------------------------
-# class EEGEncoder(nn.Module):
-#     def __init__(self, in_channels=8, hidden=32, D=128):
-#         super().__init__()
-        
-#         self.conv1 = nn.Conv1d(in_channels, hidden, kernel_size=5, padding=2)
-#         self.bn1   = nn.BatchNorm1d(hidden)
-
-#         self.conv2 = nn.Conv1d(hidden, hidden, kernel_size=5, padding=2)
-#         self.bn2   = nn.BatchNorm1d(hidden)
-
-#         self.conv3 = nn.Conv1d(hidden, hidden, kernel_size=5, padding=2)
-#         self.bn3   = nn.BatchNorm1d(hidden)
-
-#         # temporal global average pooling + linear projection
-#         self.fc = nn.Linear(hidden, D)   # D = embedding dimension
-
-#     def forward(self, x):
-#         # x: (B, C, T)
-#         h = F.gelu(self.bn1(self.conv1(x)))
-#         h = F.gelu(self.bn2(self.conv2(h)))
-#         h = F.gelu(self.bn3(self.conv3(h)))
-
-#         # global average pooling over time
-#         h = h.mean(dim=-1)   # (B, hidden)
-
-#         return self.fc(h)    # (B, D)
-
 class TCNModel_v1_outch64_GELU_head2_small(nn.Module): 
     def __init__(self, in_channels=8, hidden=16, D=128):
         super().__init__()
