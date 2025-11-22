@@ -308,9 +308,9 @@ class TRM_EEG_Model_v1_2(BaseModel_new):
 class TRM_EEG_Model_v1_3(BaseModel_new):
     def __init__(self, 
                  in_channels=8, 
-                 D=65,    
+                 D=128,    
                  n_inner=1,       # inner recursions inside deep supervision
-                 T_outer=30,       # deep supervision steps 
+                 T_outer=40,       # deep supervision steps 
                  num_classes=6, 
                  LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
         super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
