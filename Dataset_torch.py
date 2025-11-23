@@ -1,5 +1,6 @@
 from scipy.fftpack import fft
 import torch
+import mne
 import pyedflib
 import numpy as np
 from torch.utils.data import Dataset
@@ -7,7 +8,7 @@ import torchaudio
 from torchaudio.transforms import MelSpectrogram
 from scipy.signal import butter, filtfilt, iirnotch
 from Utils import build_edf_index, build_edf_index_2, build_gdf_index_2b
-import mne
+
 
 
 # ============================================================

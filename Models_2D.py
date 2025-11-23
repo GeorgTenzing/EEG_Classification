@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import torch
-# torch.set_float32_matmul_precision('high')        # for better performance on some hardware
 from torch import nn, optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, random_split
@@ -13,7 +12,6 @@ from torchmetrics.classification import Accuracy, ConfusionMatrix
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 
 from Models import BaseModel
-
 
 
 class EEGClassifier_mel(BaseModel):

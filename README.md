@@ -79,13 +79,14 @@ EEG_Classification/
 │
 ├── Result_presentation.ipynb # to present results and performance of differnet ML models
 │
-├── Main.ipynb # Main Notebook to train, test and visualise data
+├── Main.ipynb # Main Notebook to train and test models
 │
-├── Base_Model.py # includes Base Model for all other Models
+├── Base_Model.py # includes Base Model which all other models inhert 
 ├── Models_1D.py # 1D models (TCN, CNN, EEGNet variants)
 ├── Models_2D.py # 2D models for spectrogram inputs
+├── TRM.py # my attempt at combining TinyRecursiveModel with TCN 
 │
-├── Dataset_torch # Dataset class for EEG Data, inclused notch filtering and normalisation
+├── Dataset_torch.py # Dataset class for EEG Data, inclused notch filtering and normalisation
 │
 ├── Model_Trainer.py # Main training/validation/testing script/pipeline
 │
@@ -103,6 +104,27 @@ EEG_Classification/
 │
 └── README.md # This file
 ```
+
+## Notes 
+Base_Model.py:
+-> BaseModel_new: replaces BaseModel
+-> BaseModel: kept for compatibility with old models 
+Models_1D.py: 
+-> TCNModel_v1_outch64_GELU_head2: best TCN Model so fa
+-> _small and _smallest: variants of TCN with smaller model size
+-> rest: used for comparisionS 
+Models_2D.py:
+-> EEGClassifier_mel_small: seemed promising but no valuable results 
+TRM.py
+-> TRM_EEG_Model_v7_6: Most promising for SSVEP 
+-> TRM_EEG_Model_v7_6_physionet_v3: Most promising for Motor Movement Imagenry 
+Dataset_torch.py: 
+-> EEGDataset_with_filters: used for SSVEP,
+-> EEGDataset_with_filters_EDF_Stream: used for PhysioNet
+-> EEGDataset_with_filters_GDF_Stream: work in progress, used for BCI Comp IV 2b
+-> rest: used for models usin fft 
+
+
 
 ## Dependencies
 

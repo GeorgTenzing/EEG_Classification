@@ -7,8 +7,6 @@ from torch import nn, optim
 import pytorch_lightning as pl
 from torchmetrics.classification import Accuracy, ConfusionMatrix
 
-
-
 # Hierachical model definition example  
 class BaseModel_new(pl.LightningModule):
     def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
@@ -90,6 +88,9 @@ class BaseModel_new(pl.LightningModule):
         # )
         return optimizer
     
+    # ------------------------------------------------------------
+    # Test epoch end - confusion matrix plotting
+    # ------------------------------------------------------------
     def on_test_epoch_end(self):
         # --- Compute confusion matrix ---
         cm = self.test_cm.compute().cpu().numpy()
@@ -146,7 +147,11 @@ class BaseModel_new(pl.LightningModule):
 
 
 
-# Hierachical model definition example  
+
+
+
+
+# old BaseModel kept for compatibility with older models
 class BaseModel(pl.LightningModule):
     def __init__(self, in_channels=8, num_classes=6, LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
         super().__init__()
@@ -156,12 +161,6 @@ class BaseModel(pl.LightningModule):
         self.weight_decay = WEIGHT_DECAY
         self.class_labels = class_labels
         self.class_weights = class_weights
-        
-        # if class_weights is None:
-        #     self.loss_fn = nn.CrossEntropyLoss()
-        # else:
-        #     w = torch.tensor(class_weights, dtype=torch.float32, device=self.device)
-        #     self.loss_fn = nn.CrossEntropyLoss(weight=w)
 
         self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
         self.val_acc   = Accuracy(task="multiclass", num_classes=num_classes)
@@ -238,6 +237,9 @@ class BaseModel(pl.LightningModule):
         # )
         return optimizer
     
+    # ------------------------------------------------------------
+    # Test epoch end - confusion matrix plotting
+    # ------------------------------------------------------------
     def on_test_epoch_end(self):
         # --- Compute confusion matrix ---
         cm = self.test_cm.compute().cpu().numpy()
