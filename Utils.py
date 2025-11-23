@@ -6,6 +6,8 @@ import pyedflib
 import time
 from torch.utils.data import DataLoader
 import itertools
+import mne
+import os
 
 
 # ============================================================
@@ -405,6 +407,86 @@ def map_label(run, desc):
 
 
 
+def build_gdf_index_2b(
+    data_path,
+    subjects,
+    runs=[1,2,3,4,5],
+    mi_start=3.0,
+    mi_end=6.0,
+):
+    index = []
+
+    for sub in subjects:
+        for r in runs:
+
+            # suffix: T for 1,2,3 and E for 4,5
+            suffix = "T" if r in [1,2,3] else "E"
+            filename = f"B{sub:02d}{r:02d}{suffix}.gdf"
+            # print(f"Processing subject {sub}, run {r}, file {filename}")
+            gdf_path = os.path.join(data_path, filename)
+
+            if not os.path.exists(gdf_path):
+                print(f"Missing file: {gdf_path}")
+                continue
+
+            raw = mne.io.read_raw_gdf(gdf_path, preload=False)
+            
+            # Fix channel types manually (BCI IV-2b fixed layout)
+            raw.set_channel_types({
+                "EEG:C3": "eeg",
+                "EEG:Cz": "eeg",
+                "EEG:C4": "eeg",
+                "EOG:ch01": "eog",
+                "EOG:ch02": "eog",
+                "EOG:ch03": "eog",
+            })
+            
+            events, event_id = mne.events_from_annotations(raw)
+            sfreq = raw.info["sfreq"]
+
+            start_samp = int(mi_start * sfreq)
+            end_samp   = int(mi_end * sfreq)
+            win_len    = end_samp - start_samp
+
+            for onset, _, code in events:
+                # print(f"  Event at sample {onset}, code {code}")
+                # code = int(code)
+                # print(f"    Code: {code}")
+                if code == 10:
+                    label = 0   # left
+                elif code == 11:
+                    label = 1   # right
+                else:
+                    continue
+
+                index.append({
+                    "edf_path": gdf_path,
+                    "onset": onset + mi_start,
+                    "label": label,
+                    "sample_rate": sfreq,
+                    "window_length": win_len
+                })
+
+    return index
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -421,8 +503,7 @@ def map_label(run, desc):
 
 def benchmark_loader(dataset, 
                      batch_size=64, 
-                     worker_values=[9,10,11,12,13],  # [1,2,4,6] NUM_WORKERS=11, PREFETCH=1 → 6.29 batches/sec
-                    #  worker_values=[4, 6, 8],
+                     worker_values=[1,2,3,4],  # [1,2,4,6] NUM_WORKERS=11, PREFETCH=1 → 6.29 batches/sec for SSVEP and immv2
                      prefetch_values=[1]
                     ):
     results = []

@@ -6,7 +6,8 @@ from torch.utils.data import Dataset
 import torchaudio
 from torchaudio.transforms import MelSpectrogram
 from scipy.signal import butter, filtfilt, iirnotch
-from Utils import build_edf_index, build_edf_index_2
+from Utils import build_edf_index, build_edf_index_2, build_gdf_index_2b
+import mne
 
 
 # ============================================================
@@ -153,6 +154,87 @@ class EEGDataset_with_filters_EDF_Stream(Dataset):
 
 
 
+class EEGDataset_with_filters_GDF_Stream(Dataset):
+    def __init__(
+        self,
+        data_path,
+        occipital_slice=None,
+        notch_50=False,
+        subjects=None,
+        runs=None,
+
+        sample_rate=None,     # unused, but kept for compatibility
+        window_length=None,   # unused, taken from index
+        classes=None,         # unused, taken from index
+    ):
+        # Build index (contains filepaths, labels, window info)
+        self.index = build_gdf_index_2b(
+            data_path=data_path,
+            subjects=subjects,
+            runs=runs
+        )
+
+        self.occipital_slice = occipital_slice
+        self.notch_50 = notch_50
+
+        # Precompute notch filter (fs = 250 for BCI IV-2b)
+        if notch_50:
+            self.b_notch, self.a_notch = iirnotch(50, Q=30, fs=250)
+
+    def __len__(self):
+        return len(self.index)
+
+    def __getitem__(self, idx):
+        info = self.index[idx]
+
+        gdf_path   = info["edf_path"]
+        start_sec  = info["onset"]
+        label      = info["label"]
+        sr         = info["sample_rate"]
+        win_len    = info["window_length"]
+
+        # Convert seconds → samples
+        start = int(start_sec * sr)
+        end   = start + win_len
+
+        # --------------------------------------------------------
+        # ✔ LOAD GDF WINDOW USING MNE — SAFE FOR ALL .gdf FILES
+        # --------------------------------------------------------
+        raw = mne.io.read_raw_gdf(
+            gdf_path, preload=False, verbose=False
+        )
+
+        # Pick EEG channels (first three: C3, Cz, C4)
+        picks = raw.pick_types(eeg=True, eog=False)
+        # NOTE: picks returns indices; raw[picks] still works fine
+
+        # Extract window from raw (does not load entire file!)
+        X, _ = raw[picks, start:end]   # shape: (n_channels, time)
+        X = X.astype(np.float32)
+
+        # --------------------------------------------------------
+        # Optional: channel selection (e.g., [C3, Cz, C4])
+        # --------------------------------------------------------
+        if self.occipital_slice is not None:
+            X = X[self.occipital_slice]
+
+        # --------------------------------------------------------
+        # Optional: 50 Hz notch
+        # --------------------------------------------------------
+        if self.notch_50:
+            X = filtfilt(self.b_notch, self.a_notch, X, axis=-1)
+
+        # --------------------------------------------------------
+        # Normalize each window
+        # --------------------------------------------------------
+        mean = X.mean()
+        std = X.std() if X.std() != 0 else 1.0
+        X = (X - mean) / std
+
+        return (
+            torch.tensor(X, dtype=torch.float32),
+            torch.tensor(label, dtype=torch.long),
+        )
 
 
 
