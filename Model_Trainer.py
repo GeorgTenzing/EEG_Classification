@@ -135,7 +135,7 @@ def run_multiple_models(models=None, shared_parameters=None):
     test_loader = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=4)
     print("Dataloaders ready")
     # benchmark_loader(train_ds, batch_size=params["BATCH_SIZE"])
-    # epoch_time(train_loader, batch_size=params["BATCH_SIZE"])
+    epoch_time(train_loader, batch_size=params["BATCH_SIZE"])
     
     # ============================================================
     # 3️ Loop over each model (new Trainer & Logger inside)
