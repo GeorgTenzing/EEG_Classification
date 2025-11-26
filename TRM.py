@@ -1848,6 +1848,11 @@ class TRM_EEG_Model_v7_8(BaseModel_new):
 
         # Dropout (choose p=0.1–0.3)
         self.dropout = nn.Dropout(p=0.1)
+        
+        self.halt_proj = nn.Linear(D, 1)
+        self.act_epsilon = 0.01
+        self.act_max_steps = self.T_outer
+
 
 
     # ----------------------------------------------------------------
@@ -1888,31 +1893,6 @@ class TRM_EEG_Model_v7_8(BaseModel_new):
     # ----------------------------------------------------------------
     # Forward pass (deep supervision)
     # ----------------------------------------------------------------
-    def forward(self, x):
-        # -------------------------------------------------------------
-        # x: (B, C, T)
-        # -------------------------------------------------------------
-        B = x.shape[0]
-
-        # encode EEG → x_embed: (B, D)
-        x_embed = self.encoder(x) 
-
-        # initialize y and z (repeat for batch dimension)
-        y = self.y_init.repeat(B, 1)  # (B, D)
-        z = self.z_init.repeat(B, 1)  # (B, D)
-        
-        # T-1 recursion blocks w/o gradient
-        for _ in range(self.T_outer - 1):
-                y, z = self.latent_recursion(x_embed, y, z)
-
-        # 1 recursion block with gradient
-        y, z = self.latent_recursion(x_embed, y, z)
-        
-        self.halt_proj = nn.Linear(D, 1)
-        self.act_epsilon = 0.01
-
-        return self.output_head(y)   # (B, num_classes)
-    
     def forward(self, x):
         B = x.size(0)
         
