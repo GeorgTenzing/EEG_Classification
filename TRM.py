@@ -1713,6 +1713,290 @@ class TRM_EEG_Model_v7_6(BaseModel_new):
 
 
 
+class TRM_EEG_Model_v7_7(BaseModel_new):
+    def __init__(self, 
+                 in_channels=4, 
+                 D=64,    
+                 n_inner=12,        # inner recursions inside deep supervision
+                 T_outer=5,        # deep supervision steps 
+                 num_classes=4, 
+                 LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
+
+        # save config
+        self.D = D
+        self.num_classes = num_classes
+        self.n_inner = n_inner
+        self.T_outer = T_outer
+
+        # 1) EEG encoder: (B, C, T) → (B, D)
+        self.encoder = TCNModel_v1_outch64_GELU_head2_v7(in_channels=in_channels, D=D)
+
+        # 2) latent y and z init (learned parameters)
+        self.y_init = nn.Parameter(torch.randn(1, D))
+        self.z_init = nn.Parameter(torch.randn(1, D))
+
+        # 3) shared TRM tiny network
+        self.shared_net = TRMSharedNet(D)
+
+        # 4) output classifier head
+        self.output_head = nn.Linear(D, num_classes)
+        
+        # # Normalization modules
+        # self.ln_x = nn.LayerNorm(D)
+        # self.ln_y = nn.LayerNorm(D)
+        # self.ln_z = nn.LayerNorm(D)
+
+        # Dropout (choose p=0.1–0.3)
+        self.dropout = nn.Dropout(p=0.1)
+
+
+    # ----------------------------------------------------------------
+    # Latent recursion
+    # ----------------------------------------------------------------
+    
+    def latent_recursion(self, x, y, z, alpha=0.2):
+        """
+        Stable TRM recursion block with:
+        - separate LayerNorm for x, y, z
+        - residual-damped updates (alpha)
+        - dropout inside MLP
+        - clamping for numerical safety
+        """
+
+        with torch.no_grad():
+            for _ in range(self.n_inner):
+                
+                z_new = self.shared_net(x + y + z)
+                z_new = self.dropout(z_new)           # dropout
+
+                # residual-damped update (prevents explosion)
+                z = z + alpha * (z_new - z)
+
+                # clamp for stability in long recursions
+                z = torch.clamp(z, -10, 10)
+
+        # ---- Update y using stabilized z ----
+        y_new = self.shared_net(y + z)
+        y_new = self.dropout(y_new)               # dropout 
+
+        y = y + alpha * (y_new - y)
+        y = torch.clamp(y, -10, 10)
+
+        return y, z
+
+
+    # ----------------------------------------------------------------
+    # Forward pass (deep supervision)
+    # ----------------------------------------------------------------
+    def forward(self, x):
+        # -------------------------------------------------------------
+        # x: (B, C, T)
+        # -------------------------------------------------------------
+        B = x.shape[0]
+
+        # encode EEG → x_embed: (B, D)
+        x_embed = self.encoder(x) 
+
+        # initialize y and z (repeat for batch dimension)
+        y = self.y_init.repeat(B, 1)  # (B, D)
+        z = self.z_init.repeat(B, 1)  # (B, D)
+        
+        # T-1 recursion blocks w/o gradient
+        for _ in range(self.T_outer - 1):
+                y, z = self.latent_recursion(x_embed, y, z)
+
+        # 1 recursion block with gradient
+        y, z = self.latent_recursion(x_embed, y, z)
+
+        return self.output_head(y)   # (B, num_classes)
+
+
+
+
+
+
+
+class TRM_EEG_Model_v7_8(BaseModel_new):
+    def __init__(self, 
+                 in_channels=4, 
+                 D=64,    
+                 n_inner=12,        # inner recursions inside deep supervision
+                 T_outer=5,        # deep supervision steps 
+                 num_classes=4, 
+                 LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
+
+        # save config
+        self.D = D
+        self.num_classes = num_classes
+        self.n_inner = n_inner
+        self.T_outer = T_outer
+
+        # 1) EEG encoder: (B, C, T) → (B, D)
+        self.encoder = TCNModel_v1_outch64_GELU_head2_v7(in_channels=in_channels, D=D)
+
+        # 2) latent y and z init (learned parameters)
+        self.y_init = nn.Parameter(torch.randn(1, D))
+        self.z_init = nn.Parameter(torch.randn(1, D))
+
+        # 3) shared TRM tiny network
+        self.shared_net = TRMSharedNet(D)
+
+        # 4) output classifier head
+        self.output_head = nn.Linear(D, num_classes)
+
+        # Dropout (choose p=0.1–0.3)
+        self.dropout = nn.Dropout(p=0.1)
+
+
+    # ----------------------------------------------------------------
+    # Latent recursion
+    # ----------------------------------------------------------------
+    
+    def latent_recursion(self, x, y, z, alpha=0.2):
+        """
+        Stable TRM recursion block with:
+        - separate LayerNorm for x, y, z
+        - residual-damped updates (alpha)
+        - dropout inside MLP
+        - clamping for numerical safety
+        """
+
+        with torch.no_grad():
+            for _ in range(self.n_inner):
+                
+                z_new = self.shared_net(x + y + z)
+                z_new = self.dropout(z_new)           # dropout
+
+                # residual-damped update (prevents explosion)
+                z = z + alpha * (z_new - z)
+
+                # clamp for stability in long recursions
+                z = torch.clamp(z, -10, 10)
+
+        # ---- Update y using stabilized z ----
+        y_new = self.shared_net(y + z)
+        y_new = self.dropout(y_new)               # dropout 
+
+        y = y + alpha * (y_new - y)
+        y = torch.clamp(y, -10, 10)
+
+        return y, z
+
+
+    # ----------------------------------------------------------------
+    # Forward pass (deep supervision)
+    # ----------------------------------------------------------------
+    def forward(self, x):
+        # -------------------------------------------------------------
+        # x: (B, C, T)
+        # -------------------------------------------------------------
+        B = x.shape[0]
+
+        # encode EEG → x_embed: (B, D)
+        x_embed = self.encoder(x) 
+
+        # initialize y and z (repeat for batch dimension)
+        y = self.y_init.repeat(B, 1)  # (B, D)
+        z = self.z_init.repeat(B, 1)  # (B, D)
+        
+        # T-1 recursion blocks w/o gradient
+        for _ in range(self.T_outer - 1):
+                y, z = self.latent_recursion(x_embed, y, z)
+
+        # 1 recursion block with gradient
+        y, z = self.latent_recursion(x_embed, y, z)
+        
+        self.halt_proj = nn.Linear(D, 1)
+        self.act_epsilon = 0.01
+
+        return self.output_head(y)   # (B, num_classes)
+    
+    def forward(self, x):
+        B = x.size(0)
+        
+        # Encode EEG into latent vector
+        x_embed = self.encoder(x)   # (B, D)
+
+        # Init states
+        y = self.y_init.repeat(B, 1)
+        z = self.z_init.repeat(B, 1)
+
+        # ACT variables
+        halting_prob  = torch.zeros(B, 1, device=x.device)
+        accumulated_y = torch.zeros(B, self.D, device=x.device)
+        accumulated_logits = torch.zeros(B, self.num_classes, device=x.device)
+
+        for t in range(self.T_outer):
+
+            # 1) Do one TRM recursion step
+            y, z = self.latent_recursion(x_embed, y, z)
+            
+            # 2) Compute halting probability h_t
+            h_t = torch.sigmoid(self.halt_proj(y))   # (B,1)
+
+            still_running = (halting_prob < 1.0).float()
+
+            # Determine newly halted amounts
+            new_halted = ((halting_prob + h_t * still_running) > (1 - self.act_epsilon)).float() * still_running
+
+            add_prob = h_t * still_running * (1 - new_halted) + new_halted * ((1 - self.act_epsilon) - halting_prob)
+
+            # 3) Update accumulated things
+            halting_prob = halting_prob + add_prob
+
+            # weighted outputs
+            logits = self.output_head(y)
+
+            accumulated_y = accumulated_y + y * add_prob
+            accumulated_logits = accumulated_logits + logits * add_prob
+
+            # 4) Stop if all halted
+            if (halting_prob >= 1 - self.act_epsilon).all():
+                break
+
+        return accumulated_logits
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class TRM_EEG_Model_v7_6_physionet(BaseModel_new):
     def __init__(self, 
                  in_channels=4, 
@@ -2221,6 +2505,101 @@ class TRMSharedNet_physionet(nn.Module):
         return self.net(mixed)
 
 
+class TRM_EEG_Model_v7_6_physionet_v7_1(BaseModel_new):
+    def __init__(self, 
+                 in_channels=4, 
+                 D=128,    
+                 n_inner=10,        # inner recursions inside deep supervision
+                 T_outer=2,        # deep supervision steps 
+                 num_classes=4, 
+                 LR=1e-3, WEIGHT_DECAY=1e-5, class_labels=None, class_weights=None):
+        super().__init__(in_channels, num_classes, LR, WEIGHT_DECAY, class_labels, class_weights)
+
+        # save config
+        self.D = D
+        self.num_classes = num_classes
+        self.n_inner = n_inner
+        self.T_outer = T_outer
+
+        # 1) EEG encoder: (B, C, T) → (B, D)
+        self.encoder = TCNModel_v1_outch64_GELU_head2_small(in_channels=in_channels, D=D)
+
+        # 2) latent y and z init (learned parameters)
+        self.y_init = nn.Parameter(torch.randn(1, D))
+        self.z_init = nn.Parameter(torch.randn(1, D))
+
+        # 3) shared TRM tiny network
+        self.shared_net = TRMSharedNet_physionet(D)
+
+        # 4) output classifier head
+        self.output_head = nn.Linear(D, num_classes)
+
+        # Dropout (choose p=0.1–0.3)
+        self.dropout = nn.Dropout(p=0.1)
+
+
+    # ----------------------------------------------------------------
+    # Latent recursion
+    # ----------------------------------------------------------------
+    
+    def latent_recursion(self, x, y, z, alpha=0.2):
+        """
+        Stable TRM recursion block with:
+        - residual-damped updates (alpha)
+        - dropout inside MLP
+        - clamping for numerical safety
+        """
+        
+        with torch.no_grad():
+            for _ in range(self.n_inner):
+                
+                z_new = self.shared_net(x + y + z)
+                z_new = self.dropout(z_new)           # dropout
+
+                # residual-damped update (prevents explosion)
+                z = z + alpha * (z_new - z)
+
+                # clamp for stability in long recursions
+                z = torch.clamp(z, -10, 10)
+
+        # ---- Update y using stabilized z ----
+        y_new = self.shared_net(y + z)
+        y_new = self.dropout(y_new)               # dropout 
+
+        y = y + alpha * (y_new - y)
+        y = torch.clamp(y, -10, 10)
+
+        return y, z
+
+
+    # ----------------------------------------------------------------
+    # Forward pass (deep supervision)
+    # ----------------------------------------------------------------
+    def forward(self, x):
+        # -------------------------------------------------------------
+        # x: (B, C, T)
+        # -------------------------------------------------------------
+        B = x.shape[0]
+
+        # encode EEG → x_embed: (B, D)
+        x_embed = self.encoder(x) 
+
+        # initialize y and z (repeat for batch dimension)
+        y = self.y_init.repeat(B, 1)  # (B, D)
+        z = self.z_init.repeat(B, 1)  # (B, D)
+        
+        # T-1 recursion blocks w/o gradient
+        for _ in range(self.T_outer - 1):
+                y, z = self.latent_recursion(x_embed, y, z)
+
+        # 1 recursion block with gradient
+        y, z = self.latent_recursion(x_embed, y, z)
+
+        return self.output_head(y)   # (B, num_classes)
+    
+    
+    
+    
 class TRM_EEG_Model_v7_6_physionet_v7(BaseModel_new):
     def __init__(self, 
                  in_channels=4, 
@@ -2312,6 +2691,28 @@ class TRM_EEG_Model_v7_6_physionet_v7(BaseModel_new):
         y, z = self.latent_recursion(x_embed, y, z)
 
         return self.output_head(y)   # (B, num_classes)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     
     
