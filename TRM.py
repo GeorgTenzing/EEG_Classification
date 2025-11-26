@@ -1642,10 +1642,10 @@ class TRM_EEG_Model_v7_6(BaseModel_new):
         # 4) output classifier head
         self.output_head = nn.Linear(D, num_classes)
         
-        # Normalization modules
-        self.ln_x = nn.LayerNorm(D)
-        self.ln_y = nn.LayerNorm(D)
-        self.ln_z = nn.LayerNorm(D)
+        # # Normalization modules
+        # self.ln_x = nn.LayerNorm(D)
+        # self.ln_y = nn.LayerNorm(D)
+        # self.ln_z = nn.LayerNorm(D)
 
         # Dropout (choose p=0.1–0.3)
         self.dropout = nn.Dropout(p=0.1)

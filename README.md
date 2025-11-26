@@ -28,7 +28,7 @@ Model: TRM_EEG_Model_v1
 
 | Scenario                                            | Test Accuracy |
 |-----------------------------------------------------|---------------|
-| 4  SSVEP frequencies                                | ---- %        |
+| 4  SSVEP frequencies                                | 98.7 %        |
 | 10 SSVEP frequencies                                | ---- %        |
 | 4  SSVEP frequencies + “no-signal” class            | ---- %        |
 | PhysioNet Motor Imagery (left vs right fist)        | 80.4 %        |
