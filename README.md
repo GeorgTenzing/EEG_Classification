@@ -24,7 +24,7 @@ Model: TCNModel_v1_outch64_GELU_head2
 | 4  SSVEP frequencies + “no-signal” class            | 89.0 %        |
 | PhysioNet Motor Imagery (left vs right fist)        | 76.3 %        |
 
-Model: TRM_EEG_Model_v1
+Model: TRM_EEG_Model_v7_6
 
 | Scenario                                            | Test Accuracy |
 |-----------------------------------------------------|---------------|
